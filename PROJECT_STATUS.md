@@ -255,7 +255,7 @@ Potential next steps (not currently planned):
 - [x] Smoke tested: created story → generated 2 scenes → verified `current_leaf_id` persisted correctly in DB
 - [x] Cleaned up all test data from database
 
-### Phase 2, Stage 3: MoA Planner/Writer Split — COMPLETE
+### Phase 2, Stage 3: MoA Planner/Writer Split — COMPLETE (2074ec0)
 - [x] Added MoA config settings: `planner_model`, `moa_enabled`, `planner_keep_alive`, `writer_keep_alive` to config + .env
 - [x] Added `keep_alive` parameter to `OllamaService.generate()` and `generate_stream()`
 - [x] Created `ModelManager` (app/services/model_manager.py):
