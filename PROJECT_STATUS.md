@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-10
 **Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stage 4 (Image Consistency / IP-Adapter) — COMPLETE
+**Current Stage:** Stage 5.1 (Test Suite) — COMPLETE
 
 ---
 
@@ -328,11 +328,58 @@ Potential next steps (not currently planned):
 - [x] CLI: added `/illustrate` command — generates scene illustration for current node, displays saved path
 - [x] All imports verified clean, FastAPI app loads successfully, all 18 REST endpoints + WebSocket registered
 
+#### E2E Verification (all 13 areas passed)
+- [x] Frontend serving (HTML/CSS with illustration classes)
+- [x] Create story + generate scene 1 with beat
+- [x] Entity detection (4 entities: 2 characters, 1 location, 1 prop)
+- [x] Entity reference image generation (character portrait via ComfyUI)
+- [x] Scene illustration via IP-Adapter (uses character ref for visual consistency)
+- [x] Auto-illustrate toggle (on/off persists)
+- [x] Scene 2 + branch generation
+- [x] Scene illustration via basic txt2img fallback (no ref image)
+- [x] Tree (4 nodes, 2 illustrated) + markdown export
+- [x] Error cases (root node → 400, missing → 404)
+- [x] Images on disk verified
+- [x] WebSocket auto-illustrate (scene generated → illustration msg received on WS)
+- [x] Cleanup (story deleted, 0 remaining)
+
+### Phase 2, Stage 5.1: Automated Test Suite — COMPLETE
+- [x] Created `storyforge_test` PostgreSQL database with pgvector + uuid-ossp extensions
+- [x] Added `pytest-mock` to requirements.txt
+- [x] Created `pyproject.toml` with pytest + asyncio config
+- [x] Created test infrastructure:
+  - `tests/conftest.py` — env override, sync DDL setup/teardown, per-test async engine + transactional rollback, ASGI test client with dependency override
+  - `tests/factories.py` — `make_story`, `make_node`, `make_entity`, `make_beat`, `fake_embedding` helpers
+  - `tests/unit/conftest.py` — `mock_session`, `mock_ollama_client` fixtures
+  - `tests/integration/conftest.py` — `sample_story`, `sample_story_with_scene`, `sample_entity` fixtures
+- [x] **117 unit tests** covering all services and models:
+  - `test_schemas.py` (17) — Pydantic validation for all request/response schemas
+  - `test_node_model.py` (9) — Node properties: beat, illustration_path, continuity_warnings
+  - `test_ollama_service.py` (16) — generate, stream, embed, health, all error paths
+  - `test_comfyui_service.py` (14) — queue, wait, save, upload, health, all error paths
+  - `test_model_manager.py` (8) — lock, ensure_loaded, unload, list_loaded
+  - `test_planner_service.py` (9) — plan_beat, _parse_beat (JSON, markdown fences, fallback), character warnings
+  - `test_writer_service.py` (9) — model selection, system prompts, format_beat_prompt, write/stream
+  - `test_context_service.py` (7) — _assemble budget logic, section priorities, truncation
+  - `test_story_service.py` (8) — MoA pipeline, single-model fallback, branch, prompt building
+  - `test_illustration_service.py` (8) — IP-Adapter vs basic workflow, prompt building, error handling
+  - `test_asset_service.py` (9) — detect_entities, create_entity, generate_entity_image
+- [x] **45 integration tests** with real PostgreSQL:
+  - `test_story_api.py` (17) — CRUD, tree, export, validation, 404s
+  - `test_node_api.py` (11) — generate (mocked), branch, get, path, update, illustrate
+  - `test_entity_api.py` (9) — create, list, detect, get, image, update
+  - `test_health_api.py` (3) — healthy, degraded (ollama down), both down
+  - `test_websocket.py` (5) — invalid JSON, unknown action, streaming, story/node not found
+- [x] **162 tests total, all passing in ~3 seconds**
+- [x] No live Ollama/ComfyUI required — all external services mocked
+- [x] Integration tests use real PostgreSQL with pgvector for accurate query testing
+
 ## Next Steps
 
-1. Smoke test: start server → create story → generate scenes → test illustration (manual + auto)
-2. Verify IP-Adapter workflow with actual character reference images
-3. Phase 2, Stage 5+ (see PHASE_2_ROADMAP.md)
+1. Phase 2, Stage 5.2: Incremental UI improvements (story settings panel, inline illustrations, beat display, continuity warnings, loading states)
+2. Phase 2, Stage 5.3: CLI improvements (/mode, /context commands, updated /status)
+3. Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B) — see PHASE_2_ROADMAP.md "New Model Requirements"
+4. Phase 3 planning (React frontend rewrite, audio narration, EPUB export, etc.)
 
 ## Blockers
 
