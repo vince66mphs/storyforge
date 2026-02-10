@@ -13,11 +13,13 @@ from app.api.schemas import (
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
+from app.services.ollama_service import OllamaService
 from app.services.story_service import StoryGenerationService
 
 router = APIRouter(tags=["nodes"])
 
 story_svc = StoryGenerationService()
+ollama_svc = OllamaService()
 
 
 @router.post(
@@ -122,6 +124,11 @@ async def update_node(
         raise HTTPException(status_code=404, detail="Node not found")
 
     node.content = body.content
+    # Re-embed on content change for RAG accuracy
+    try:
+        node.embedding = await ollama_svc.create_embedding(body.content)
+    except Exception:
+        pass  # Embedding failure shouldn't block content update
     await session.commit()
     await session.refresh(node)
     return node

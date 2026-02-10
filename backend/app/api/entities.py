@@ -16,12 +16,14 @@ from app.core.exceptions import ServiceUnavailableError, ServiceTimeoutError, Ge
 from app.models.story import Story
 from app.models.world_bible import WorldBibleEntity
 from app.services.asset_service import AssetService
+from app.services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["entities"])
 
 asset_svc = AssetService()
+ollama_svc = OllamaService()
 
 
 @router.post(
@@ -170,6 +172,14 @@ async def update_entity(
     if body.base_prompt is not None:
         entity.base_prompt = body.base_prompt
     entity.version += 1
+
+    # Re-embed if description changed for RAG accuracy
+    if body.description is not None:
+        try:
+            embed_text = f"{entity.name} ({entity.entity_type}): {entity.description}"
+            entity.embedding = await ollama_svc.create_embedding(embed_text)
+        except Exception:
+            pass  # Embedding failure shouldn't block update
 
     await session.commit()
     await session.refresh(entity)

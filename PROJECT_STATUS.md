@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-10
 **Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stage 1 (Content Mode & Story Settings) COMPLETE
+**Current Stage:** Stage 2 (RAG for Long-Form Memory) — COMPLETE
 
 ---
 
@@ -233,11 +233,33 @@ Potential next steps (not currently planned):
 - [x] All 17 API endpoints verified working
 - [x] Both content modes default to dolphin-mistral:7b until new models are pulled
 
+### Phase 2, Stage 2: RAG for Long-Form Memory — COMPLETE
+- [x] Created `ContextService` (app/services/context_service.py) — full RAG context assembly:
+  - `build_context()` — assembles from ancestors + semantic search + entity lookup
+  - `_get_ancestors()` — walks parent chain (configurable depth via `story.context_depth`)
+  - `_semantic_node_search()` — pgvector cosine distance query, excludes ancestor nodes
+  - `_semantic_entity_search()` — vector search on world_bible entities
+  - `_name_match_entities()` — scans user prompt for entity names (case-insensitive)
+  - `_assemble()` — structured output with token budget (ancestors > entities > history)
+- [x] Wired `ContextService` into `StoryGenerationService` (replaces old `get_story_context`)
+  - Both `generate_scene` and `generate_scene_stream` use `context_svc.build_context()`
+  - Uses `story_obj.context_depth` for ancestor depth
+- [x] Added summary generation via phi4 after scene creation (`_generate_summary` method)
+  - Generates 1-2 sentence summaries for efficient RAG retrieval
+  - Non-blocking — failure logged but doesn't affect scene
+- [x] Re-embedding on PATCH for nodes (app/api/nodes.py) — content edits re-embed via nomic-embed-text
+- [x] Re-embedding on PATCH for entities (app/api/entities.py) — description edits re-embed
+- [x] Bug fix: `current_leaf_id` not persisting after ContextService refactor
+  - Root cause: `story_obj` loaded early, SQLAlchemy identity map stale after many queries
+  - Fix: Re-fetch Story object right before setting `current_leaf_id` in both `generate_scene` and `generate_scene_stream`
+- [x] Smoke tested: created story → generated 2 scenes → verified `current_leaf_id` persisted correctly in DB
+- [x] Cleaned up all test data from database
+
 ## Next Steps
 
-- [ ] Pull writer models: Dark Champion 8X4B V2, Gemma 3 27B QAT, Hermes 3 8B
-- [ ] Update .env with new model names once pulled
-- [ ] Phase 2, Stage 2: RAG for Long-Form Memory (see PHASE_2_ROADMAP.md)
+1. Phase 2, Stage 3: Multi-Agent MoA — Planner/Writer Split (see PHASE_2_ROADMAP.md)
+2. Pull writer models for content mode differentiation
+3. Update .env with new model names once pulled
 
 ## Blockers
 
@@ -253,7 +275,8 @@ None.
 - Swagger docs at /docs, health check at /health
 - PostgreSQL 17.6 running on port 5432
 - Alembic configured for async (asyncpg + greenlet)
-- Migrations: 67150de53c78 (initial empty) → a1178161be24 (core tables) → 795905b88fe5 (content mode + story settings)
+- Migrations: 67150de53c78 (initial) → a1178161be24 (core tables) → 795905b88fe5 (content mode + story settings)
+- Stage 2 RAG: ContextService provides structured context (ancestors + semantic nodes + world bible entities) with token budget
 - HNSW indexes use vector_cosine_ops with m=16, ef_construction=64
 - Embedding dimension: 768 (matches nomic-embed-text model)
 - Ollama models: dolphin-mistral:7b (creative writer), phi4:latest (planner), gemma2:9b (visualizer), nomic-embed-text (embeddings)

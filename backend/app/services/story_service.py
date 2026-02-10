@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.node import Node
 from app.models.story import Story
+from app.services.context_service import ContextService
 from app.services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
@@ -32,12 +33,19 @@ SYSTEM_PROMPT_SAFE = (
     "explicit sexual content, and excessive profanity."
 )
 
+SUMMARY_SYSTEM_PROMPT = (
+    "Summarize the following story scene in 1-2 sentences. "
+    "Focus on key plot events, character actions, and important details. "
+    "Be concise and factual."
+)
+
 
 class StoryGenerationService:
     """Generates story scenes using Ollama with narrative DAG context."""
 
     def __init__(self):
         self.ollama = OllamaService()
+        self.context_svc = ContextService()
         settings = get_settings()
         self._writer_models = {
             "unrestricted": settings.writer_model_unrestricted,
@@ -108,15 +116,21 @@ class StoryGenerationService:
         Returns:
             The newly created Node with generated content.
         """
-        # Load story for content mode
+        # Load story for content mode and settings
         story_result = await session.execute(
             select(Story).where(Story.id == story_id)
         )
         story_obj = story_result.scalar_one()
         content_mode = story_obj.content_mode
 
-        # Build context from ancestor chain
-        context = await self.get_story_context(session, parent_node_id)
+        # Build RAG context
+        context = await self.context_svc.build_context(
+            session=session,
+            story_id=story_id,
+            parent_node_id=parent_node_id,
+            user_prompt=user_prompt,
+            ancestor_depth=story_obj.context_depth,
+        )
         prompt = self._build_prompt(context, user_prompt)
 
         writer_model = self._get_writer_model(content_mode)
@@ -147,7 +161,7 @@ class StoryGenerationService:
         )
         session.add(new_node)
 
-        # Update story's current leaf pointer
+        # Update story's current leaf pointer (re-fetch to ensure clean state)
         result = await session.execute(
             select(Story).where(Story.id == story_id)
         )
@@ -156,6 +170,9 @@ class StoryGenerationService:
 
         await session.commit()
         await session.refresh(new_node)
+
+        # Generate summary (non-blocking — failure doesn't affect scene)
+        await self._generate_summary(session, new_node)
 
         logger.info("Created scene node=%s (%d chars)", new_node.id, len(content))
         return new_node
@@ -182,14 +199,21 @@ class StoryGenerationService:
                 else:
                     node = chunk  # final Node
         """
-        # Load story for content mode
+        # Load story for content mode and settings
         story_result = await session.execute(
             select(Story).where(Story.id == story_id)
         )
         story_obj = story_result.scalar_one()
         content_mode = story_obj.content_mode
 
-        context = await self.get_story_context(session, parent_node_id)
+        # Build RAG context
+        context = await self.context_svc.build_context(
+            session=session,
+            story_id=story_id,
+            parent_node_id=parent_node_id,
+            user_prompt=user_prompt,
+            ancestor_depth=story_obj.context_depth,
+        )
         prompt = self._build_prompt(context, user_prompt)
 
         writer_model = self._get_writer_model(content_mode)
@@ -222,6 +246,7 @@ class StoryGenerationService:
         )
         session.add(new_node)
 
+        # Update story's current leaf pointer (re-fetch to ensure clean state)
         result = await session.execute(
             select(Story).where(Story.id == story_id)
         )
@@ -231,8 +256,29 @@ class StoryGenerationService:
         await session.commit()
         await session.refresh(new_node)
 
+        # Generate summary (non-blocking — failure doesn't affect scene)
+        await self._generate_summary(session, new_node)
+
         logger.info("Created scene node=%s (%d chars)", new_node.id, len(content))
         yield new_node
+
+    async def _generate_summary(self, session: AsyncSession, node: Node) -> None:
+        """Generate a 1-2 sentence summary for a node using phi4.
+
+        Summaries are used by RAG for efficient context retrieval.
+        Failures are logged but don't block scene creation.
+        """
+        try:
+            summary = await self.ollama.generate(
+                prompt=node.content,
+                system=SUMMARY_SYSTEM_PROMPT,
+                model="phi4:latest",
+            )
+            node.summary = summary.strip()
+            await session.commit()
+            logger.info("Generated summary for node=%s (%d chars)", node.id, len(node.summary))
+        except Exception as e:
+            logger.warning("Summary generation failed for node=%s: %s", node.id, e)
 
     async def create_branch(
         self,
