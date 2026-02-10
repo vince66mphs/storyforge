@@ -1,5 +1,6 @@
 """WebSocket endpoint for streaming story generation."""
 
+import asyncio
 import json
 import logging
 import uuid
@@ -15,6 +16,7 @@ from app.core.exceptions import (
 )
 from app.models.node import Node
 from app.models.story import Story
+from app.services.illustration_service import IllustrationService
 from app.services.story_service import StoryGenerationService
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 story_svc = StoryGenerationService()
+illustration_svc = IllustrationService()
 
 
 def _node_to_dict(node: Node) -> dict:
@@ -36,6 +39,7 @@ def _node_to_dict(node: Node) -> dict:
         "created_at": node.created_at.isoformat(),
         "beat": node.beat,
         "continuity_warnings": node.continuity_warnings,
+        "illustration_path": node.illustration_path,
     }
     return d
 
@@ -112,6 +116,7 @@ async def _handle_generate(ws: WebSocket, msg: dict):
             parent_id = story.current_leaf_id
 
         # Stream generation
+        completed_node = None
         async for chunk in story_svc.generate_scene_stream(
             session=session,
             story_id=story_id,
@@ -123,7 +128,19 @@ async def _handle_generate(ws: WebSocket, msg: dict):
             elif isinstance(chunk, str):
                 await ws.send_json({"type": "token", "content": chunk})
             else:
+                completed_node = chunk
                 await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})
+
+        # Auto-illustrate if enabled
+        if completed_node:
+            result = await session.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if story and story.auto_illustrate:
+                asyncio.create_task(
+                    _auto_illustrate_and_notify(ws, completed_node.id, story_id)
+                )
 
 
 async def _handle_branch(ws: WebSocket, msg: dict):
@@ -145,6 +162,7 @@ async def _handle_branch(ws: WebSocket, msg: dict):
             return
 
         # Stream generation from the same parent
+        completed_node = None
         async for chunk in story_svc.generate_scene_stream(
             session=session,
             story_id=story_id,
@@ -156,4 +174,46 @@ async def _handle_branch(ws: WebSocket, msg: dict):
             elif isinstance(chunk, str):
                 await ws.send_json({"type": "token", "content": chunk})
             else:
+                completed_node = chunk
                 await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})
+
+        # Auto-illustrate if enabled
+        if completed_node:
+            result = await session.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if story and story.auto_illustrate:
+                asyncio.create_task(
+                    _auto_illustrate_and_notify(ws, completed_node.id, story_id)
+                )
+
+
+async def _auto_illustrate_and_notify(
+    ws: WebSocket, node_id: uuid.UUID, story_id: uuid.UUID
+):
+    """Background task: illustrate a scene and notify via WebSocket."""
+    try:
+        async with async_session() as session:
+            result = await session.execute(select(Node).where(Node.id == node_id))
+            node = result.scalar_one_or_none()
+            if node is None:
+                return
+
+            result = await session.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if story is None:
+                return
+
+            filename = await illustration_svc.illustrate_scene(session, node, story)
+            if filename:
+                await ws.send_json({
+                    "type": "illustration",
+                    "node_id": str(node_id),
+                    "path": f"/static/images/{filename}",
+                })
+    except Exception:
+        # WebSocket may be closed; swallow silently
+        logger.debug("Auto-illustrate notify failed for node=%s", node_id, exc_info=True)

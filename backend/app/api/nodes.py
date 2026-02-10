@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,13 +14,17 @@ from app.api.schemas import (
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
+from app.services.illustration_service import IllustrationService
 from app.services.ollama_service import OllamaService
 from app.services.story_service import StoryGenerationService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["nodes"])
 
 story_svc = StoryGenerationService()
 ollama_svc = OllamaService()
+illustration_svc = IllustrationService()
 
 
 @router.post(
@@ -130,5 +135,33 @@ async def update_node(
     except Exception:
         pass  # Embedding failure shouldn't block content update
     await session.commit()
+    await session.refresh(node)
+    return node
+
+
+@router.post("/api/nodes/{node_id}/illustrate", response_model=NodeResponse)
+async def illustrate_node(
+    node_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate a scene illustration for a node."""
+    result = await session.execute(select(Node).where(Node.id == node_id))
+    node = result.scalar_one_or_none()
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if node.node_type == "root":
+        raise HTTPException(status_code=400, detail="Cannot illustrate root node")
+
+    result = await session.execute(select(Story).where(Story.id == node.story_id))
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    logger.info("Illustrate request for node=%s, story=%s", node_id, node.story_id)
+    filename = await illustration_svc.illustrate_scene(session, node, story)
+    if filename is None:
+        logger.warning("Illustration failed for node=%s", node_id)
+        raise HTTPException(status_code=502, detail="Illustration generation failed")
+
     await session.refresh(node)
     return node

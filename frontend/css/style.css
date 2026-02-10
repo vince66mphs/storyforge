@@ -455,6 +455,52 @@ label {
   50% { opacity: 0; }
 }
 
+/* ── Scene Illustration ──────────────────────────────────────────── */
+
+.scene-illustration {
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.scene-illustration:empty {
+  display: none;
+}
+
+.scene-illustration img {
+  width: 100%;
+  max-height: 400px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  display: block;
+}
+
+/* ── Scene Actions (visible on hover) ────────────────────────────── */
+
+.scene-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.scene:hover .scene-actions {
+  opacity: 1;
+}
+
+.scene-illustrate-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+/* ── Auto-Illustrate Toggle ─────────────────────────────────────── */
+
+#auto-illustrate-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
 /* ── Scene Beat (expandable planner output) ──────────────────────── */
 
 .scene-beat {

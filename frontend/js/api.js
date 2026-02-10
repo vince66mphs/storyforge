@@ -97,6 +97,10 @@ export function createBranch(nodeId, userPrompt) {
   return request('POST', `/api/nodes/${nodeId}/branch`, { user_prompt: userPrompt });
 }
 
+export function illustrateNode(nodeId) {
+  return request('POST', `/api/nodes/${nodeId}/illustrate`);
+}
+
 // ── Entities ─────────────────────────────────────────────────────────
 
 export function listEntities(storyId) {

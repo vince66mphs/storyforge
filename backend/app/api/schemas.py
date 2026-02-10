@@ -56,6 +56,7 @@ class NodeResponse(BaseModel):
     created_at: datetime
     beat: dict | None = None
     continuity_warnings: list[str] = []
+    illustration_path: str | None = None
 
     model_config = {"from_attributes": True}
 

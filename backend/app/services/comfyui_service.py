@@ -278,6 +278,46 @@ class ComfyUIService:
 
         raise GenerationError(SERVICE_NAME, f"no output images for prompt_id={prompt_id}")
 
+    async def upload_image(self, image_path: str, filename: str | None = None) -> str:
+        """Upload an image to ComfyUI's input directory.
+
+        Args:
+            image_path: Absolute path to the image file on disk.
+            filename: Optional name to register in ComfyUI. Defaults to the file's basename.
+
+        Returns:
+            The registered filename in ComfyUI's input directory.
+
+        Raises:
+            ServiceUnavailableError: If ComfyUI cannot be reached.
+            GenerationError: If the upload fails.
+        """
+        filepath = Path(image_path)
+        upload_name = filename or filepath.name
+
+        try:
+            async with httpx.AsyncClient() as client:
+                with open(filepath, "rb") as f:
+                    response = await client.post(
+                        f"{self.base_url}/upload/image",
+                        files={"image": (upload_name, f, "image/png")},
+                        data={"overwrite": "true"},
+                        timeout=30.0,
+                    )
+                response.raise_for_status()
+                data = response.json()
+                registered_name = data.get("name", upload_name)
+                logger.info("Uploaded image to ComfyUI: %s", registered_name)
+                return registered_name
+        except httpx.ConnectError as e:
+            raise ServiceUnavailableError(SERVICE_NAME, str(e)) from e
+        except httpx.TimeoutException as e:
+            raise ServiceTimeoutError(SERVICE_NAME, timeout=30.0, detail=str(e)) from e
+        except httpx.HTTPStatusError as e:
+            raise GenerationError(SERVICE_NAME, f"image upload failed (HTTP {e.response.status_code})") from e
+        except Exception as e:
+            raise GenerationError(SERVICE_NAME, f"image upload failed: {e}") from e
+
     async def check_health(self) -> bool:
         """Check if ComfyUI is reachable.
 

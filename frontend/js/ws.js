@@ -8,6 +8,7 @@ export class StorySocket {
     this.onToken = null;   // (text) => void
     this.onComplete = null; // (node) => void
     this.onPhase = null;   // (phase: "planning"|"writing") => void
+    this.onIllustration = null; // (nodeId, path) => void
     this.onError = null;    // (message) => void
     this.onOpen = null;     // () => void
     this.onClose = null;    // () => void
@@ -57,6 +58,8 @@ export class StorySocket {
         this.onPhase?.(msg.phase);
       } else if (msg.type === 'complete') {
         this.onComplete?.(msg.node);
+      } else if (msg.type === 'illustration') {
+        this.onIllustration?.(msg.node_id, msg.path);
       } else if (msg.type === 'error') {
         this.onError?.(msg.message, msg.error_type, msg.service);
       }

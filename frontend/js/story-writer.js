@@ -19,6 +19,7 @@ let generatingIndicator;
 let activeSceneEl = null;
 
 let contentModeBtn;
+let autoIllustrateBtn;
 
 export function init(ws) {
   socket = ws;
@@ -28,10 +29,14 @@ export function init(ws) {
   branchBtn = document.getElementById('branch-btn');
   generatingIndicator = document.getElementById('generating-indicator');
   contentModeBtn = document.getElementById('content-mode-btn');
+  autoIllustrateBtn = document.getElementById('auto-illustrate-btn');
 
   continueBtn.addEventListener('click', handleContinue);
   branchBtn.addEventListener('click', handleBranch);
   contentModeBtn.addEventListener('click', handleToggleContentMode);
+  if (autoIllustrateBtn) {
+    autoIllustrateBtn.addEventListener('click', handleToggleAutoIllustrate);
+  }
 
   promptInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -44,6 +49,7 @@ export function init(ws) {
   socket.onToken = handleToken;
   socket.onPhase = handlePhase;
   socket.onComplete = handleComplete;
+  socket.onIllustration = handleIllustration;
   socket.onError = handleWsError;
 }
 
@@ -53,6 +59,7 @@ export async function loadStory(story, openingPrompt = null) {
 
   document.getElementById('story-title-display').textContent = story.title;
   updateContentModeDisplay(story.content_mode);
+  updateAutoIllustrateDisplay(story.auto_illustrate);
   scenesContainer.innerHTML = '';
 
   // Connect WebSocket (await so send() works immediately after)
@@ -145,12 +152,34 @@ function appendScene(node) {
   meta.className = 'scene-meta';
   meta.textContent = `Scene \u00b7 ${new Date(node.created_at).toLocaleTimeString()}`;
 
+  // Illustration (shown above content if available)
+  const illustrationDiv = document.createElement('div');
+  illustrationDiv.className = 'scene-illustration';
+  if (node.illustration_path) {
+    const img = document.createElement('img');
+    img.src = `/static/images/${node.illustration_path}`;
+    img.alt = 'Scene illustration';
+    img.loading = 'lazy';
+    illustrationDiv.appendChild(img);
+  }
+
   const content = document.createElement('div');
   content.className = 'scene-content';
   content.textContent = node.content;
 
+  // Scene actions (illustrate button, visible on hover)
+  const actions = document.createElement('div');
+  actions.className = 'scene-actions';
+  const illustrateBtn = document.createElement('button');
+  illustrateBtn.className = 'btn btn-ghost btn-small scene-illustrate-btn';
+  illustrateBtn.textContent = node.illustration_path ? 'Re-illustrate' : 'Illustrate';
+  illustrateBtn.addEventListener('click', () => handleIllustrate(node.id, scene));
+  actions.appendChild(illustrateBtn);
+
   scene.appendChild(meta);
+  scene.appendChild(illustrationDiv);
   scene.appendChild(content);
+  scene.appendChild(actions);
 
   // Show beat if present (loaded from API)
   if (node.beat) {
@@ -375,6 +404,65 @@ async function handleToggleContentMode() {
     showToast(`Content mode: ${updated.content_mode}`, 'success');
   } catch (err) {
     showToast('Failed to update content mode: ' + err.message, 'error');
+  }
+}
+
+async function handleIllustrate(nodeId, sceneEl) {
+  const btn = sceneEl.querySelector('.scene-illustrate-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Illustrating...';
+  }
+  try {
+    const updated = await api.illustrateNode(nodeId);
+    if (updated.illustration_path) {
+      const illustrationDiv = sceneEl.querySelector('.scene-illustration');
+      illustrationDiv.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = `/static/images/${updated.illustration_path}`;
+      img.alt = 'Scene illustration';
+      illustrationDiv.appendChild(img);
+      if (btn) btn.textContent = 'Re-illustrate';
+      showToast('Illustration generated', 'success');
+    }
+  } catch (err) {
+    showToast('Illustration failed: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function handleIllustration(nodeId, path) {
+  // Handle auto-illustrate WebSocket notification
+  const sceneEl = scenesContainer.querySelector(`.scene[data-node-id="${nodeId}"]`);
+  if (!sceneEl) return;
+  const illustrationDiv = sceneEl.querySelector('.scene-illustration');
+  if (!illustrationDiv) return;
+  illustrationDiv.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = path;
+  img.alt = 'Scene illustration';
+  illustrationDiv.appendChild(img);
+  const btn = sceneEl.querySelector('.scene-illustrate-btn');
+  if (btn) btn.textContent = 'Re-illustrate';
+}
+
+function updateAutoIllustrateDisplay(enabled) {
+  if (!autoIllustrateBtn) return;
+  autoIllustrateBtn.textContent = enabled ? 'Auto-Illust: On' : 'Auto-Illust: Off';
+  autoIllustrateBtn.classList.toggle('active', !!enabled);
+}
+
+async function handleToggleAutoIllustrate() {
+  if (!currentStory || isGenerating) return;
+  const newVal = !currentStory.auto_illustrate;
+  try {
+    const updated = await api.updateStory(currentStory.id, { auto_illustrate: newVal });
+    currentStory.auto_illustrate = updated.auto_illustrate;
+    updateAutoIllustrateDisplay(updated.auto_illustrate);
+    showToast(`Auto-illustrate: ${updated.auto_illustrate ? 'on' : 'off'}`, 'success');
+  } catch (err) {
+    showToast('Failed to toggle auto-illustrate: ' + err.message, 'error');
   }
 }
 

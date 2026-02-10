@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-10
 **Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stage 3 (MoA Planner/Writer Split) — COMPLETE
+**Current Stage:** Stage 4 (Image Consistency / IP-Adapter) — COMPLETE
 
 ---
 
@@ -294,11 +294,45 @@ Potential next steps (not currently planned):
 - [x] Health endpoint: includes `moa_enabled` in response
 - [x] All imports verified clean, config loads correctly, Node properties tested
 
+### Phase 2, Stage 4: Image Consistency (IP-Adapter) — COMPLETE
+- [x] Created ComfyUI workflow templates:
+  - `workflows/scene_ipadapter.json` — IP-Adapter workflow (11 nodes: checkpoint + IP-Adapter model + CLIP vision + LoadImage → IPAdapter apply → KSampler → VAEDecode → SaveImage)
+  - `workflows/scene_basic.json` — Plain txt2img for scenes without references (7 nodes, landscape 1024x576)
+- [x] Added illustration config settings to `config.py` + `.env` + `.env.example`:
+  - `ipadapter_enabled` (bool, default true), `ipadapter_weight` (float, default 0.7)
+  - `scene_image_width` (1024), `scene_image_height` (576)
+- [x] Added `illustration_path` property to Node model (reads from `metadata_` JSONB — zero migrations)
+- [x] Added `illustration_path` field to `NodeResponse` schema
+- [x] Added `upload_image()` method to `ComfyUIService` — multipart POST to ComfyUI `/upload/image`
+- [x] Created `IllustrationService` (`app/services/illustration_service.py`):
+  - `illustrate_scene()` — generates scene illustration with IP-Adapter or plain txt2img fallback
+  - `_build_image_prompt()` — extracts prompt from planner beat (setting, characters, events, tone) or falls back to scene content
+  - `_find_reference_image()` — looks up character/location entities with reference images from the beat's `characters_present`
+  - `_generate_ipadapter()` — loads IP-Adapter workflow, uploads ref image, configures and queues
+  - `_generate_basic()` — loads basic workflow for scenes without entity references
+  - `illustration_lock` — asyncio.Semaphore(1) prevents concurrent ComfyUI illustration requests
+  - Stores `illustration_path` in `node.metadata_` with `flag_modified()` for JSONB mutation detection
+- [x] Added REST endpoint: `POST /api/nodes/{node_id}/illustrate` — generates illustration, returns updated NodeResponse
+- [x] Wired auto-illustrate into WebSocket handler:
+  - `_node_to_dict()` includes `illustration_path`
+  - `_handle_generate()` and `_handle_branch()` check `story.auto_illustrate` after completion
+  - `asyncio.create_task(_auto_illustrate_and_notify())` — fire-and-forget background illustration
+  - Sends `{"type": "illustration", "node_id": "...", "path": "/static/images/..."}` on WebSocket
+  - Graceful failure — swallows exceptions if WebSocket is closed
+- [x] Frontend changes:
+  - `api.js`: added `illustrateNode(nodeId)` function
+  - `ws.js`: added `onIllustration` callback, dispatches on `msg.type === 'illustration'`
+  - `story-writer.js`: scene illustrations shown inline, "Illustrate"/"Re-illustrate" button (visible on hover), auto-illustrate toggle button, `handleIllustration()` for WebSocket notifications
+  - `style.css`: `.scene-illustration` (rounded, full-width), `.scene-actions` (opacity transition on hover), `#auto-illustrate-btn.active` styling
+  - `index.html`: auto-illustrate toggle button in writing view header
+- [x] CLI: added `/illustrate` command — generates scene illustration for current node, displays saved path
+- [x] All imports verified clean, FastAPI app loads successfully, all 18 REST endpoints + WebSocket registered
+
 ## Next Steps
 
-1. Smoke test: start server → create story → generate scenes → verify MoA pipeline
-2. Pull writer models for content mode differentiation
-3. Phase 2, Stage 4+ (see PHASE_2_ROADMAP.md)
+1. Smoke test: start server → create story → generate scenes → test illustration (manual + auto)
+2. Verify IP-Adapter workflow with actual character reference images
+3. Phase 2, Stage 5+ (see PHASE_2_ROADMAP.md)
 
 ## Blockers
 

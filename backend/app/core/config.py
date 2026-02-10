@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # ComfyUI
     comfyui_host: str = "http://localhost:8188"
 
+    # Illustration (IP-Adapter scene images)
+    ipadapter_enabled: bool = True
+    ipadapter_weight: float = 0.7
+    scene_image_width: int = 1024
+    scene_image_height: int = 576
+
     # Application
     app_host: str = "0.0.0.0"
     app_port: int = 8000

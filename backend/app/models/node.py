@@ -67,6 +67,13 @@ class Node(Base):
         return None
 
     @property
+    def illustration_path(self) -> str | None:
+        """Extract the illustration image path from metadata, if present."""
+        if self.metadata_:
+            return self.metadata_.get("illustration_path")
+        return None
+
+    @property
     def continuity_warnings(self) -> list[str]:
         """Extract continuity warnings from metadata."""
         if self.metadata_:

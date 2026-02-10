@@ -12,6 +12,7 @@ from app.models.node import Node
 from app.models.story import Story
 from app.models.world_bible import WorldBibleEntity
 from app.services.asset_service import AssetService
+from app.services.illustration_service import IllustrationService
 from app.services.story_service import StoryGenerationService
 
 
@@ -59,6 +60,7 @@ HELP_TEXT = f"""
   {CYAN}/entities{RESET}     List world bible entities
   {CYAN}/detect{RESET}       Auto-detect entities in current scene
   {CYAN}/image <n>{RESET}    Generate image for entity by number
+  {CYAN}/illustrate{RESET}   Generate scene illustration for current node
   {CYAN}/export{RESET}       Export story to markdown
   {CYAN}/help{RESET}         Show this help
   {CYAN}/quit{RESET}         Exit
@@ -73,6 +75,7 @@ class StoryForgeCLI:
     def __init__(self):
         self.story_svc = StoryGenerationService()
         self.asset_svc = AssetService()
+        self.illustration_svc = IllustrationService()
         self.story: Story | None = None
         self.current_node: Node | None = None
 
@@ -134,6 +137,8 @@ class StoryForgeCLI:
                     await self._detect_entities()
                 elif cmd == "/image":
                     await self._generate_image(arg)
+                elif cmd == "/illustrate":
+                    await self._illustrate_scene()
                 elif cmd == "/beat":
                     await self._show_beat()
                 elif cmd == "/export":
@@ -476,6 +481,39 @@ class StoryForgeCLI:
             print(f"  {YELLOW}{BOLD}Warnings:{RESET}")
             for w in warnings:
                 print(f"    {YELLOW}- {w}{RESET}")
+
+    # ── Scene Illustration ─────────────────────────────────────────────
+
+    async def _illustrate_scene(self):
+        if not self.story or not self.current_node:
+            warn("No story loaded.")
+            return
+
+        if self.current_node.node_type == "root":
+            warn("Cannot illustrate the root node.")
+            return
+
+        info("Generating scene illustration...")
+
+        # Refresh story and node from DB
+        result = await self.session.execute(
+            select(Story).where(Story.id == self.story.id)
+        )
+        story = result.scalar_one()
+        result = await self.session.execute(
+            select(Node).where(Node.id == self.current_node.id)
+        )
+        node = result.scalar_one()
+
+        filename = await self.illustration_svc.illustrate_scene(
+            self.session, node, story
+        )
+
+        if filename:
+            info(f"Illustration saved: static/images/{filename}")
+            self.current_node = node
+        else:
+            error("Illustration generation failed.")
 
     # ── Entities ──────────────────────────────────────────────────────
 
