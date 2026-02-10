@@ -7,6 +7,7 @@ export class StorySocket {
     this.ws = null;
     this.onToken = null;   // (text) => void
     this.onComplete = null; // (node) => void
+    this.onPhase = null;   // (phase: "planning"|"writing") => void
     this.onError = null;    // (message) => void
     this.onOpen = null;     // () => void
     this.onClose = null;    // () => void
@@ -52,6 +53,8 @@ export class StorySocket {
 
       if (msg.type === 'token') {
         this.onToken?.(msg.content);
+      } else if (msg.type === 'phase') {
+        this.onPhase?.(msg.phase);
       } else if (msg.type === 'complete') {
         this.onComplete?.(msg.node);
       } else if (msg.type === 'error') {

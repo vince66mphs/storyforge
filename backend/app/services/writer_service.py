@@ -1,0 +1,146 @@
+"""Writer service — expands planner beats into prose.
+
+The writer is the second pass of the MoA (Mixture of Agents) pipeline.
+It takes a structured beat from the PlannerService and generates vivid
+narrative prose, respecting the content mode.
+"""
+
+import logging
+from collections.abc import AsyncIterator
+
+from app.core.config import get_settings
+from app.services.ollama_service import OllamaService
+
+logger = logging.getLogger(__name__)
+
+WRITER_SYSTEM_UNRESTRICTED = (
+    "You are a creative fiction writer collaborating with a reader on an interactive story. "
+    "You will be given a scene plan (beat) and story context. "
+    "Expand the beat into vivid, engaging prose — 2-4 paragraphs. "
+    "Follow the beat's structure (setting, characters, events, tone) but do NOT "
+    "echo the beat verbatim or reference it as a plan. Write naturally as narrative prose. "
+    "End at a moment that invites the reader to choose what happens next. "
+    "Do not break the fourth wall or mention that you are an AI. "
+    "You have full creative freedom — explore any themes, emotions, or situations "
+    "the story demands without restriction."
+)
+
+WRITER_SYSTEM_SAFE = (
+    "You are a creative fiction writer collaborating with a reader on an interactive story. "
+    "You will be given a scene plan (beat) and story context. "
+    "Expand the beat into vivid, engaging prose — 2-4 paragraphs. "
+    "Follow the beat's structure (setting, characters, events, tone) but do NOT "
+    "echo the beat verbatim or reference it as a plan. Write naturally as narrative prose. "
+    "End at a moment that invites the reader to choose what happens next. "
+    "Do not break the fourth wall or mention that you are an AI. "
+    "Keep content appropriate for a general audience — avoid graphic violence, "
+    "explicit sexual content, and excessive profanity."
+)
+
+
+class WriterService:
+    """Expands planner beats into narrative prose."""
+
+    def __init__(self):
+        self.ollama = OllamaService()
+        settings = get_settings()
+        self._writer_models = {
+            "unrestricted": settings.writer_model_unrestricted,
+            "safe": settings.writer_model_safe,
+        }
+        self._keep_alive = settings.writer_keep_alive
+
+    def _get_model(self, content_mode: str) -> str:
+        return self._writer_models.get(content_mode, self._writer_models["unrestricted"])
+
+    def _get_system_prompt(self, content_mode: str) -> str:
+        if content_mode == "safe":
+            return WRITER_SYSTEM_SAFE
+        return WRITER_SYSTEM_UNRESTRICTED
+
+    def _format_beat_prompt(self, beat: dict, context: str) -> str:
+        """Format beat and context into a writer prompt."""
+        parts = [f"Story so far:\n{context}"]
+
+        parts.append("\nScene plan:")
+        parts.append(f"  Setting: {beat.get('setting', 'Continuing from previous')}")
+
+        characters = beat.get("characters_present", [])
+        if characters:
+            parts.append(f"  Characters present: {', '.join(characters)}")
+
+        events = beat.get("key_events", [])
+        if events:
+            parts.append("  Key events:")
+            for event in events:
+                parts.append(f"    - {event}")
+
+        tone = beat.get("emotional_tone", "")
+        if tone:
+            parts.append(f"  Emotional tone: {tone}")
+
+        continuity = beat.get("continuity_notes", "")
+        if continuity:
+            parts.append(f"  Continuity notes: {continuity}")
+
+        parts.append("\nWrite this scene as narrative prose:")
+        return "\n".join(parts)
+
+    async def write_scene(
+        self,
+        beat: dict,
+        context: str,
+        content_mode: str,
+    ) -> str:
+        """Generate complete scene prose from a beat.
+
+        Args:
+            beat: Structured beat from PlannerService.
+            context: Assembled story context.
+            content_mode: 'unrestricted' or 'safe'.
+
+        Returns:
+            The generated prose text.
+        """
+        model = self._get_model(content_mode)
+        system = self._get_system_prompt(content_mode)
+        prompt = self._format_beat_prompt(beat, context)
+
+        logger.info("Writing scene with model=%s, mode=%s", model, content_mode)
+
+        return await self.ollama.generate(
+            prompt=prompt,
+            system=system,
+            model=model,
+            keep_alive=self._keep_alive,
+        )
+
+    async def write_scene_stream(
+        self,
+        beat: dict,
+        context: str,
+        content_mode: str,
+    ) -> AsyncIterator[str]:
+        """Stream scene prose generation from a beat.
+
+        Args:
+            beat: Structured beat from PlannerService.
+            context: Assembled story context.
+            content_mode: 'unrestricted' or 'safe'.
+
+        Yields:
+            Text chunks as they are generated.
+        """
+        model = self._get_model(content_mode)
+        system = self._get_system_prompt(content_mode)
+        prompt = self._format_beat_prompt(beat, context)
+
+        logger.info("Streaming scene with model=%s, mode=%s", model, content_mode)
+
+        async for chunk in self.ollama.generate_stream(
+            prompt=prompt,
+            system=system,
+            model=model,
+            keep_alive=self._keep_alive,
+        ):
+            yield chunk

@@ -30,6 +30,7 @@ class OllamaService:
         prompt: str,
         system: str = "",
         model: str | None = None,
+        keep_alive: str | None = None,
     ) -> str:
         """Generate a complete text response.
 
@@ -53,8 +54,11 @@ class OllamaService:
         messages.append({"role": "user", "content": prompt})
 
         logger.info("Generating with model=%s, prompt_len=%d", model, len(prompt))
+        kwargs: dict = {"model": model, "messages": messages}
+        if keep_alive is not None:
+            kwargs["keep_alive"] = keep_alive
         try:
-            response = await self.client.chat(model=model, messages=messages)
+            response = await self.client.chat(**kwargs)
         except httpx.ConnectError as e:
             raise ServiceUnavailableError(SERVICE_NAME, str(e)) from e
         except httpx.TimeoutException as e:
@@ -73,6 +77,7 @@ class OllamaService:
         prompt: str,
         system: str = "",
         model: str | None = None,
+        keep_alive: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream text generation token by token.
 
@@ -96,8 +101,11 @@ class OllamaService:
         messages.append({"role": "user", "content": prompt})
 
         logger.info("Streaming with model=%s, prompt_len=%d", model, len(prompt))
+        kwargs: dict = {"model": model, "messages": messages, "stream": True}
+        if keep_alive is not None:
+            kwargs["keep_alive"] = keep_alive
         try:
-            stream = await self.client.chat(model=model, messages=messages, stream=True)
+            stream = await self.client.chat(**kwargs)
         except httpx.ConnectError as e:
             raise ServiceUnavailableError(SERVICE_NAME, str(e)) from e
         except httpx.TimeoutException as e:

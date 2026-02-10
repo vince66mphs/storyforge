@@ -455,6 +455,56 @@ label {
   50% { opacity: 0; }
 }
 
+/* ── Scene Beat (expandable planner output) ──────────────────────── */
+
+.scene-beat {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.scene-beat summary {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  user-select: none;
+}
+
+.scene-beat summary:hover {
+  color: var(--text-secondary);
+}
+
+.scene-beat[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.scene-beat-content {
+  padding: 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.scene-beat-content strong {
+  color: var(--text-primary);
+}
+
+.scene-beat-content ul {
+  margin: 4px 0 4px 20px;
+  padding: 0;
+}
+
+.scene-beat-content li {
+  margin-bottom: 2px;
+}
+
+.scene-beat-content div + div {
+  margin-top: 6px;
+}
+
 /* ── Generating Indicator ─────────────────────────────────────────── */
 
 .generating-indicator {

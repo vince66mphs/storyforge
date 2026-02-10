@@ -26,7 +26,7 @@ story_svc = StoryGenerationService()
 
 def _node_to_dict(node: Node) -> dict:
     """Convert a Node to a JSON-serializable dict matching NodeResponse."""
-    return {
+    d = {
         "id": str(node.id),
         "story_id": str(node.story_id),
         "parent_id": str(node.parent_id) if node.parent_id else None,
@@ -34,7 +34,10 @@ def _node_to_dict(node: Node) -> dict:
         "summary": node.summary,
         "node_type": node.node_type,
         "created_at": node.created_at.isoformat(),
+        "beat": node.beat,
+        "continuity_warnings": node.continuity_warnings,
     }
+    return d
 
 
 def _error_msg(message: str, error_type: str = "error", service: str | None = None) -> dict:
@@ -115,7 +118,9 @@ async def _handle_generate(ws: WebSocket, msg: dict):
             parent_node_id=parent_id,
             user_prompt=prompt,
         ):
-            if isinstance(chunk, str):
+            if isinstance(chunk, dict):
+                await ws.send_json({"type": "phase", "phase": chunk["phase"]})
+            elif isinstance(chunk, str):
                 await ws.send_json({"type": "token", "content": chunk})
             else:
                 await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})
@@ -146,7 +151,9 @@ async def _handle_branch(ws: WebSocket, msg: dict):
             parent_node_id=ref_node.parent_id,
             user_prompt=prompt,
         ):
-            if isinstance(chunk, str):
+            if isinstance(chunk, dict):
+                await ws.send_json({"type": "phase", "phase": chunk["phase"]})
+            elif isinstance(chunk, str):
                 await ws.send_json({"type": "token", "content": chunk})
             else:
                 await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})

@@ -59,5 +59,19 @@ class Node(Base):
         ),
     )
 
+    @property
+    def beat(self) -> dict | None:
+        """Extract the planner beat from metadata, if present."""
+        if self.metadata_:
+            return self.metadata_.get("beat")
+        return None
+
+    @property
+    def continuity_warnings(self) -> list[str]:
+        """Extract continuity warnings from metadata."""
+        if self.metadata_:
+            return self.metadata_.get("continuity_warnings", [])
+        return []
+
     def __repr__(self) -> str:
         return f"<Node(id={self.id}, type='{self.node_type}', story_id={self.story_id})>"

@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     writer_model_unrestricted: str = "dolphin-mistral:7b"
     writer_model_safe: str = "dolphin-mistral:7b"
 
+    # MoA (Mixture of Agents) — Planner/Writer split
+    planner_model: str = "phi4:latest"
+    moa_enabled: bool = True
+    planner_keep_alive: str = "24h"
+    writer_keep_alive: str = "24h"
+
     # ComfyUI
     comfyui_host: str = "http://localhost:8188"
 

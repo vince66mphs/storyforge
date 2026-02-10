@@ -42,6 +42,7 @@ export function init(ws) {
 
   // WebSocket handlers
   socket.onToken = handleToken;
+  socket.onPhase = handlePhase;
   socket.onComplete = handleComplete;
   socket.onError = handleWsError;
 }
@@ -150,6 +151,29 @@ function appendScene(node) {
 
   scene.appendChild(meta);
   scene.appendChild(content);
+
+  // Show beat if present (loaded from API)
+  if (node.beat) {
+    const details = document.createElement('details');
+    details.className = 'scene-beat';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Scene Beat';
+    details.appendChild(summary);
+
+    const beatContent = document.createElement('div');
+    beatContent.className = 'scene-beat-content';
+    const beat = node.beat;
+    let html = '';
+    if (beat.setting) html += `<div><strong>Setting:</strong> ${escapeHtml(beat.setting)}</div>`;
+    if (beat.characters_present?.length) html += `<div><strong>Characters:</strong> ${beat.characters_present.map(escapeHtml).join(', ')}</div>`;
+    if (beat.key_events?.length) html += `<div><strong>Events:</strong><ul>${beat.key_events.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`;
+    if (beat.emotional_tone) html += `<div><strong>Tone:</strong> ${escapeHtml(beat.emotional_tone)}</div>`;
+    if (beat.continuity_notes) html += `<div><strong>Continuity:</strong> ${escapeHtml(beat.continuity_notes)}</div>`;
+    beatContent.innerHTML = html;
+    details.appendChild(beatContent);
+    scene.appendChild(details);
+  }
+
   scenesContainer.appendChild(scene);
 
   return scene;
@@ -183,6 +207,18 @@ function startGeneration() {
   scrollToBottom();
 }
 
+function handlePhase(phase) {
+  if (!generatingIndicator) return;
+  const label = generatingIndicator.querySelector('.generating-label');
+  if (label) {
+    if (phase === 'planning') {
+      label.textContent = 'Planning scene...';
+    } else if (phase === 'writing') {
+      label.textContent = 'Writing...';
+    }
+  }
+}
+
 function handleToken(text) {
   if (!activeSceneEl) return;
   const content = activeSceneEl.querySelector('.scene-content');
@@ -201,6 +237,10 @@ function handleComplete(node) {
   setInputEnabled(true);
   generatingIndicator.classList.add('hidden');
 
+  // Reset generating label for next time
+  const label = generatingIndicator.querySelector('.generating-label');
+  if (label) label.textContent = 'Generating...';
+
   if (activeSceneEl) {
     // Remove cursor
     const cursor = activeSceneEl.querySelector('.cursor');
@@ -212,6 +252,35 @@ function handleComplete(node) {
 
     // Store node ID
     activeSceneEl.dataset.nodeId = node.id;
+
+    // Show beat as expandable details if present
+    if (node.beat) {
+      const details = document.createElement('details');
+      details.className = 'scene-beat';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Scene Beat';
+      details.appendChild(summary);
+
+      const beatContent = document.createElement('div');
+      beatContent.className = 'scene-beat-content';
+      const beat = node.beat;
+      let html = '';
+      if (beat.setting) html += `<div><strong>Setting:</strong> ${escapeHtml(beat.setting)}</div>`;
+      if (beat.characters_present?.length) html += `<div><strong>Characters:</strong> ${beat.characters_present.map(escapeHtml).join(', ')}</div>`;
+      if (beat.key_events?.length) html += `<div><strong>Events:</strong><ul>${beat.key_events.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`;
+      if (beat.emotional_tone) html += `<div><strong>Tone:</strong> ${escapeHtml(beat.emotional_tone)}</div>`;
+      if (beat.continuity_notes) html += `<div><strong>Continuity:</strong> ${escapeHtml(beat.continuity_notes)}</div>`;
+      beatContent.innerHTML = html;
+      details.appendChild(beatContent);
+      activeSceneEl.appendChild(details);
+    }
+  }
+
+  // Show continuity warnings as toasts
+  if (node.continuity_warnings?.length) {
+    for (const warning of node.continuity_warnings) {
+      showToast(`Continuity: ${warning}`, 'error');
+    }
   }
 
   currentLeafId = node.id;
@@ -219,6 +288,12 @@ function handleComplete(node) {
 
   // Dispatch event for tree/entity refresh
   document.dispatchEvent(new CustomEvent('scene-complete', { detail: { node } }));
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function handleWsError(message, errorType, service) {

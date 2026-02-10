@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-10
 **Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stage 2 (RAG for Long-Form Memory) — COMPLETE
+**Current Stage:** Stage 3 (MoA Planner/Writer Split) — COMPLETE
 
 ---
 
@@ -255,11 +255,50 @@ Potential next steps (not currently planned):
 - [x] Smoke tested: created story → generated 2 scenes → verified `current_leaf_id` persisted correctly in DB
 - [x] Cleaned up all test data from database
 
+### Phase 2, Stage 3: MoA Planner/Writer Split — COMPLETE
+- [x] Added MoA config settings: `planner_model`, `moa_enabled`, `planner_keep_alive`, `writer_keep_alive` to config + .env
+- [x] Added `keep_alive` parameter to `OllamaService.generate()` and `generate_stream()`
+- [x] Created `ModelManager` (app/services/model_manager.py):
+  - `generation_lock` — asyncio.Semaphore(1) to serialize generation (prevents VRAM contention)
+  - `ensure_loaded()` — zero-token preload request
+  - `unload()` — keep_alive=0 to free VRAM
+  - `list_loaded()` — query Ollama /api/ps
+- [x] Created `PlannerService` (app/services/planner_service.py):
+  - `plan_beat()` — uses phi4 to generate structured JSON beats
+  - JSON parsing with markdown fence stripping and extraction fallback
+  - Falls back to minimal beat on parse failure (never crashes pipeline)
+  - Validates characters against world bible, flags unknowns in continuity_warnings
+- [x] Created `WriterService` (app/services/writer_service.py):
+  - `write_scene()` and `write_scene_stream()` — expands beats into prose
+  - Formats beat as natural-language scene plan in prompt
+  - Content-mode-aware system prompts (unrestricted vs safe)
+- [x] Added `beat` and `continuity_warnings` properties to Node model (reads from metadata_ JSONB)
+- [x] Added `beat` and `continuity_warnings` fields to NodeResponse schema
+- [x] Refactored `StoryGenerationService`:
+  - MoA path: planner → writer under generation_lock semaphore
+  - Stores beat in node.metadata_ (zero migrations needed)
+  - Stream yields phase signals: `{"phase": "planning"}`, `{"phase": "writing"}`
+  - Single-model fallback when `MOA_ENABLED=false`
+  - `_generate_summary()` uses configurable planner_model
+  - `_get_world_bible_entities()` helper for planner input
+- [x] WebSocket handler: dispatches `{"type": "phase", "phase": "..."}` messages on dict phase signals
+- [x] `_node_to_dict()` includes `beat` and `continuity_warnings`
+- [x] CLI: phase signals show "Planning scene..." / "Writing..." indicators
+- [x] CLI: `/beat` command displays current scene's planner beat
+- [x] CLI: continuity warnings shown after scene generation
+- [x] Frontend ws.js: added `onPhase` callback
+- [x] Frontend story-writer.js: phase indicator updates ("Planning scene..." → "Writing...")
+- [x] Frontend story-writer.js: beat displayed as expandable `<details>` below each scene
+- [x] Frontend story-writer.js: continuity warnings shown as toasts on completion
+- [x] Frontend style.css: `.scene-beat` styles for expandable beat display
+- [x] Health endpoint: includes `moa_enabled` in response
+- [x] All imports verified clean, config loads correctly, Node properties tested
+
 ## Next Steps
 
-1. Phase 2, Stage 3: Multi-Agent MoA — Planner/Writer Split (see PHASE_2_ROADMAP.md)
+1. Smoke test: start server → create story → generate scenes → verify MoA pipeline
 2. Pull writer models for content mode differentiation
-3. Update .env with new model names once pulled
+3. Phase 2, Stage 4+ (see PHASE_2_ROADMAP.md)
 
 ## Blockers
 
@@ -277,6 +316,7 @@ None.
 - Alembic configured for async (asyncpg + greenlet)
 - Migrations: 67150de53c78 (initial) → a1178161be24 (core tables) → 795905b88fe5 (content mode + story settings)
 - Stage 2 RAG: ContextService provides structured context (ancestors + semantic nodes + world bible entities) with token budget
+- Stage 3 MoA: Two-pass pipeline (PlannerService → WriterService) under ModelManager semaphore; beat stored in metadata_ JSONB
 - HNSW indexes use vector_cosine_ops with m=16, ef_construction=64
 - Embedding dimension: 768 (matches nomic-embed-text model)
 - Ollama models: dolphin-mistral:7b (creative writer), phi4:latest (planner), gemma2:9b (visualizer), nomic-embed-text (embeddings)

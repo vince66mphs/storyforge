@@ -55,6 +55,7 @@ HELP_TEXT = f"""
   {CYAN}/tree{RESET}         Show the narrative tree
   {CYAN}/branch{RESET}       Create an alternative from the current scene
   {CYAN}/goto <n>{RESET}     Jump to a node by tree number
+  {CYAN}/beat{RESET}         Show the planner beat for the current scene
   {CYAN}/entities{RESET}     List world bible entities
   {CYAN}/detect{RESET}       Auto-detect entities in current scene
   {CYAN}/image <n>{RESET}    Generate image for entity by number
@@ -133,6 +134,8 @@ class StoryForgeCLI:
                     await self._detect_entities()
                 elif cmd == "/image":
                     await self._generate_image(arg)
+                elif cmd == "/beat":
+                    await self._show_beat()
                 elif cmd == "/export":
                     await self._export()
                 else:
@@ -350,7 +353,6 @@ class StoryForgeCLI:
             return
 
         print(header("Generating..."))
-        sys.stdout.write("  ")
 
         node = None
         async for chunk in self.story_svc.generate_scene_stream(
@@ -359,7 +361,14 @@ class StoryForgeCLI:
             parent_node_id=self.current_node.id,
             user_prompt=user_prompt,
         ):
-            if isinstance(chunk, str):
+            if isinstance(chunk, dict):
+                phase = chunk.get("phase", "")
+                if phase == "planning":
+                    print(f"  {DIM}Planning scene...{RESET}")
+                elif phase == "writing":
+                    print(f"  {DIM}Writing...{RESET}")
+                    sys.stdout.write("  ")
+            elif isinstance(chunk, str):
                 sys.stdout.write(chunk)
                 sys.stdout.flush()
             else:
@@ -370,6 +379,9 @@ class StoryForgeCLI:
         if node:
             self.current_node = node
             info(f"Scene saved ({len(node.content)} chars)")
+            if node.continuity_warnings:
+                for w in node.continuity_warnings:
+                    warn(f"Continuity: {w}")
 
     async def _branch(self, user_prompt: str):
         if not self.story or not self.current_node:
@@ -390,7 +402,6 @@ class StoryForgeCLI:
                 return
 
         print(header("Branching..."))
-        sys.stdout.write("  ")
 
         # Build the branch using streaming: get context from parent, then stream
         result = await self.session.execute(
@@ -405,7 +416,14 @@ class StoryForgeCLI:
             parent_node_id=ref_node.parent_id,
             user_prompt=user_prompt,
         ):
-            if isinstance(chunk, str):
+            if isinstance(chunk, dict):
+                phase = chunk.get("phase", "")
+                if phase == "planning":
+                    print(f"  {DIM}Planning scene...{RESET}")
+                elif phase == "writing":
+                    print(f"  {DIM}Writing...{RESET}")
+                    sys.stdout.write("  ")
+            elif isinstance(chunk, str):
                 sys.stdout.write(chunk)
                 sys.stdout.flush()
             else:
@@ -416,6 +434,48 @@ class StoryForgeCLI:
         if node:
             self.current_node = node
             info(f"Branch saved ({len(node.content)} chars)")
+            if node.continuity_warnings:
+                for w in node.continuity_warnings:
+                    warn(f"Continuity: {w}")
+
+    # ── Beat Display ─────────────────────────────────────────────────
+
+    async def _show_beat(self):
+        if not self.story or not self.current_node:
+            warn("No story loaded.")
+            return
+
+        beat = self.current_node.beat
+        if not beat:
+            warn("No planner beat for this scene (single-model mode or root node).")
+            return
+
+        print(header("Scene Beat"))
+        print(f"  {BOLD}Setting:{RESET}    {beat.get('setting', '?')}")
+
+        chars = beat.get("characters_present", [])
+        if chars:
+            print(f"  {BOLD}Characters:{RESET} {', '.join(chars)}")
+
+        events = beat.get("key_events", [])
+        if events:
+            print(f"  {BOLD}Events:{RESET}")
+            for ev in events:
+                print(f"    - {ev}")
+
+        tone = beat.get("emotional_tone", "")
+        if tone:
+            print(f"  {BOLD}Tone:{RESET}       {tone}")
+
+        notes = beat.get("continuity_notes", "")
+        if notes:
+            print(f"  {BOLD}Continuity:{RESET} {notes}")
+
+        warnings = beat.get("continuity_warnings", [])
+        if warnings:
+            print(f"  {YELLOW}{BOLD}Warnings:{RESET}")
+            for w in warnings:
+                print(f"    {YELLOW}- {w}{RESET}")
 
     # ── Entities ──────────────────────────────────────────────────────
 

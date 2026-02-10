@@ -124,6 +124,7 @@ async def health_check():
         "status": "ok" if all_ok else "degraded",
         "version": "0.1.0",
         "services": services,
+        "moa_enabled": settings.moa_enabled,
     }
 
 
