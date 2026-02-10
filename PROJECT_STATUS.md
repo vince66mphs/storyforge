@@ -205,9 +205,17 @@ Potential next steps (not currently planned):
 
 ---
 
+### Git Repository Initialization
+- [x] Created `.gitignore` (excludes .venv, .env, __pycache__, generated images, exports, .claude/)
+- [x] Created `backend/.env.example` (credential-free template)
+- [x] Added `.gitkeep` files for empty directories (static/images, exports, workflows)
+- [x] Initialized git repo on `main` branch
+- [x] Initial commit: 59 files, 10,962 lines — full Phase 1 MVP
+
+---
+
 ## Next Session
 
-- [ ] Initialize git repository and make first commit (all Phase 1 code)
 - [ ] Consider Phase 2 planning
 
 ## Blockers
