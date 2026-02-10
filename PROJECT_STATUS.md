@@ -408,10 +408,33 @@ Potential next steps (not currently planned):
   - test_model_not_found_ws_error (WebSocket integration)
   - test_model_not_found_error_attributes, test_is_subclass, test_custom_detail
 
-## Next Steps
+## Phase 3: World Bible Enhancements (In Progress)
 
-1. Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B) — see PHASE_2_ROADMAP.md "New Model Requirements"
-2. Phase 3 planning (React frontend rewrite, audio narration, EPUB export, etc.)
+Starting with improvements to the existing app before tackling new Phase 3 features (React rewrite, TTS, EPUB).
+
+### World Bible Overhaul — PLANNED (6 tasks)
+
+The current entity panel is minimal (auto-detect, tiny thumbnails, click-to-regenerate). Goal: full-featured World Bible with manual creation, image selection, and description management.
+
+**Backend tasks:**
+- [ ] **4-image generation endpoint** — Generate 4 images with different seeds for each entity; stream results as they complete; add select endpoint to pick winner; clean up unselected images
+- [ ] **Vision-based description generation** — New endpoint using gemma2:9b vision model to generate entity description from reference image; needs vision-capable Ollama generate method
+
+**Frontend tasks:**
+- [ ] **Image lightbox/popup** — Click entity thumbnail to view full-size image in modal overlay; reusable modal component
+- [ ] **Manual entity creation form** — "Add Entity" button + form with name, type (character/location/prop), description, base_prompt fields
+- [ ] **4-image selection grid** — Modal with 2x2 grid; images appear progressively as generated; click to select as reference; "Regenerate All" button
+- [ ] **Entity detail panel** — Expanded view with editable description/base_prompt, "Generate Image" button (triggers 4-image grid), "Generate Description from Image" button (vision model)
+
+**Implementation order:** Lightbox modal → Manual add form → 4-image backend → 4-image grid UI → Vision describe backend → Detail panel
+
+### Future Phase 3 Work (Not Yet Started)
+- Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B)
+- React/TypeScript frontend rewrite with React Flow DAG editor
+- Audio narration / TTS
+- EPUB export
+- PuLID advanced face consistency
+- LoRA training pipeline
 
 ## Blockers
 
