@@ -63,8 +63,12 @@ export function getStory(id) {
   return request('GET', `/api/stories/${id}`);
 }
 
-export function createStory(title, genre) {
-  return request('POST', '/api/stories', { title, genre: genre || null });
+export function createStory(title, genre, contentMode = 'unrestricted') {
+  return request('POST', '/api/stories', { title, genre: genre || null, content_mode: contentMode });
+}
+
+export function updateStory(id, updates) {
+  return request('PATCH', `/api/stories/${id}`, updates);
 }
 
 export function deleteStory(id) {

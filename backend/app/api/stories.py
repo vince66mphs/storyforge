@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.schemas import StoryCreate, StoryResponse, NodeResponse
+from app.api.schemas import StoryCreate, StoryUpdate, StoryResponse, NodeResponse
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
@@ -21,7 +21,7 @@ async def create_story(
     session: AsyncSession = Depends(get_session),
 ):
     """Create a new story with an initial root node."""
-    story = Story(title=body.title, genre=body.genre)
+    story = Story(title=body.title, genre=body.genre, content_mode=body.content_mode)
     session.add(story)
     await session.flush()
 
@@ -58,6 +58,27 @@ async def get_story(
     story = result.scalar_one_or_none()
     if story is None:
         raise HTTPException(status_code=404, detail="Story not found")
+    return story
+
+
+@router.patch("/{story_id}", response_model=StoryResponse)
+async def update_story(
+    story_id: uuid.UUID,
+    body: StoryUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Update story settings (content mode, auto-illustrate, context depth)."""
+    result = await session.execute(select(Story).where(Story.id == story_id))
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(story, field, value)
+
+    await session.commit()
+    await session.refresh(story)
     return story
 
 

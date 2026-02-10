@@ -11,6 +11,18 @@ export function init(selectCallback) {
   onStorySelect = selectCallback;
 
   document.getElementById('create-story-form').addEventListener('submit', handleCreate);
+
+  // Content mode toggle buttons
+  for (const btn of document.querySelectorAll('.toggle-group .toggle-btn')) {
+    btn.addEventListener('click', () => {
+      for (const b of document.querySelectorAll('.toggle-group .toggle-btn')) {
+        b.classList.remove('active');
+      }
+      btn.classList.add('active');
+      document.getElementById('story-content-mode').value = btn.dataset.mode;
+    });
+  }
+
   loadStories();
 }
 
@@ -45,7 +57,9 @@ function createStoryCard(story) {
   const meta = document.createElement('div');
   meta.className = 'meta';
   const date = new Date(story.created_at).toLocaleDateString();
-  meta.textContent = story.genre ? `${story.genre} \u00b7 ${date}` : date;
+  const modeLabel = story.content_mode === 'safe' ? 'Safe' : 'Unrestricted';
+  const parts = [story.genre, modeLabel, date].filter(Boolean);
+  meta.textContent = parts.join(' \u00b7 ');
 
   info.appendChild(title);
   info.appendChild(meta);
@@ -80,10 +94,12 @@ async function handleCreate(e) {
 
   const titleInput = document.getElementById('story-title');
   const genreInput = document.getElementById('story-genre');
+  const contentModeInput = document.getElementById('story-content-mode');
   const openingInput = document.getElementById('story-opening');
 
   const title = titleInput.value.trim();
   const genre = genreInput.value.trim();
+  const contentMode = contentModeInput.value;
   const opening = openingInput.value.trim();
 
   if (!title || !opening) return;
@@ -93,10 +109,14 @@ async function handleCreate(e) {
   btn.textContent = 'Creating...';
 
   try {
-    const story = await api.createStory(title, genre);
+    const story = await api.createStory(title, genre, contentMode);
     titleInput.value = '';
     genreInput.value = '';
     openingInput.value = '';
+    contentModeInput.value = 'unrestricted';
+    // Reset toggle buttons
+    document.getElementById('mode-unrestricted').classList.add('active');
+    document.getElementById('mode-safe').classList.remove('active');
     showToast(`Created "${story.title}"`, 'success');
 
     // Open the story in the writer, passing the opening direction

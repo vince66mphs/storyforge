@@ -9,12 +9,22 @@ from pydantic import BaseModel, Field
 class StoryCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     genre: str | None = Field(None, max_length=100)
+    content_mode: str = Field("unrestricted", pattern=r"^(unrestricted|safe)$")
+
+
+class StoryUpdate(BaseModel):
+    content_mode: str | None = Field(None, pattern=r"^(unrestricted|safe)$")
+    auto_illustrate: bool | None = None
+    context_depth: int | None = Field(None, ge=1, le=20)
 
 
 class StoryResponse(BaseModel):
     id: uuid.UUID
     title: str
     genre: str | None
+    content_mode: str
+    auto_illustrate: bool
+    context_depth: int
     created_at: datetime
     updated_at: datetime
     current_leaf_id: uuid.UUID | None

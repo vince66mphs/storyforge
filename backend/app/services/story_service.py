@@ -5,18 +5,31 @@ from collections.abc import AsyncIterator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.node import Node
 from app.models.story import Story
 from app.services.ollama_service import OllamaService
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
+SYSTEM_PROMPT_UNRESTRICTED = (
     "You are a creative fiction writer collaborating with a reader on an interactive story. "
     "Continue the narrative based on the story so far and the reader's direction. "
     "Write in vivid, engaging prose. Keep each scene to 2-4 paragraphs. "
     "End scenes at moments that invite the reader to choose what happens next. "
-    "Do not break the fourth wall or mention that you are an AI."
+    "Do not break the fourth wall or mention that you are an AI. "
+    "You have full creative freedom — explore any themes, emotions, or situations "
+    "the story demands without restriction."
+)
+
+SYSTEM_PROMPT_SAFE = (
+    "You are a creative fiction writer collaborating with a reader on an interactive story. "
+    "Continue the narrative based on the story so far and the reader's direction. "
+    "Write in vivid, engaging prose. Keep each scene to 2-4 paragraphs. "
+    "End scenes at moments that invite the reader to choose what happens next. "
+    "Do not break the fourth wall or mention that you are an AI. "
+    "Keep content appropriate for a general audience — avoid graphic violence, "
+    "explicit sexual content, and excessive profanity."
 )
 
 
@@ -25,6 +38,19 @@ class StoryGenerationService:
 
     def __init__(self):
         self.ollama = OllamaService()
+        settings = get_settings()
+        self._writer_models = {
+            "unrestricted": settings.writer_model_unrestricted,
+            "safe": settings.writer_model_safe,
+        }
+
+    def _get_writer_model(self, content_mode: str) -> str:
+        return self._writer_models.get(content_mode, self._writer_models["unrestricted"])
+
+    def _get_system_prompt(self, content_mode: str) -> str:
+        if content_mode == "safe":
+            return SYSTEM_PROMPT_SAFE
+        return SYSTEM_PROMPT_UNRESTRICTED
 
     async def get_story_context(
         self,
@@ -82,19 +108,30 @@ class StoryGenerationService:
         Returns:
             The newly created Node with generated content.
         """
+        # Load story for content mode
+        story_result = await session.execute(
+            select(Story).where(Story.id == story_id)
+        )
+        story_obj = story_result.scalar_one()
+        content_mode = story_obj.content_mode
+
         # Build context from ancestor chain
         context = await self.get_story_context(session, parent_node_id)
         prompt = self._build_prompt(context, user_prompt)
 
+        writer_model = self._get_writer_model(content_mode)
+        system_prompt = self._get_system_prompt(content_mode)
+
         logger.info(
-            "Generating scene for story=%s, parent=%s, context_len=%d",
-            story_id, parent_node_id, len(context),
+            "Generating scene for story=%s, parent=%s, mode=%s, model=%s, context_len=%d",
+            story_id, parent_node_id, content_mode, writer_model, len(context),
         )
 
         # Generate scene text
         content = await self.ollama.generate(
             prompt=prompt,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
+            model=writer_model,
         )
 
         # Generate embedding for the new content
@@ -145,18 +182,28 @@ class StoryGenerationService:
                 else:
                     node = chunk  # final Node
         """
+        # Load story for content mode
+        story_result = await session.execute(
+            select(Story).where(Story.id == story_id)
+        )
+        story_obj = story_result.scalar_one()
+        content_mode = story_obj.content_mode
+
         context = await self.get_story_context(session, parent_node_id)
         prompt = self._build_prompt(context, user_prompt)
 
+        writer_model = self._get_writer_model(content_mode)
+        system_prompt = self._get_system_prompt(content_mode)
+
         logger.info(
-            "Streaming scene for story=%s, parent=%s, context_len=%d",
-            story_id, parent_node_id, len(context),
+            "Streaming scene for story=%s, parent=%s, mode=%s, model=%s, context_len=%d",
+            story_id, parent_node_id, content_mode, writer_model, len(context),
         )
 
         # Stream and collect the full text
         chunks: list[str] = []
         async for chunk in self.ollama.generate_stream(
-            prompt=prompt, system=SYSTEM_PROMPT
+            prompt=prompt, system=system_prompt, model=writer_model
         ):
             chunks.append(chunk)
             yield chunk

@@ -30,6 +30,14 @@
             <input type="text" id="story-genre" placeholder="Fantasy, Sci-Fi, Mystery...">
           </div>
           <div class="form-group">
+            <label for="story-content-mode">Content Mode</label>
+            <div class="toggle-group">
+              <button type="button" class="toggle-btn active" data-mode="unrestricted" id="mode-unrestricted">Unrestricted</button>
+              <button type="button" class="toggle-btn" data-mode="safe" id="mode-safe">Safe</button>
+            </div>
+            <input type="hidden" id="story-content-mode" value="unrestricted">
+          </div>
+          <div class="form-group">
             <label for="story-opening">Opening direction</label>
             <textarea id="story-opening" placeholder="Describe how the story should begin..." rows="3" required></textarea>
           </div>
@@ -52,6 +60,7 @@
       <button id="back-btn" class="btn btn-ghost" title="Back to lobby">&larr; Stories</button>
       <h1 id="story-title-display"></h1>
       <div class="header-actions">
+        <button id="content-mode-btn" class="btn btn-ghost content-mode-indicator" title="Toggle content mode">Unrestricted</button>
         <button id="export-btn" class="btn btn-ghost" title="Export to Markdown">Export</button>
       </div>
     </header>

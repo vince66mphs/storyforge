@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +26,15 @@ class Story(Base):
         UUID(as_uuid=True),
         ForeignKey("nodes.id", use_alter=True),
         nullable=True,
+    )
+    content_mode: Mapped[str] = mapped_column(
+        String(20), default="unrestricted", server_default="unrestricted"
+    )
+    auto_illustrate: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    context_depth: Mapped[int] = mapped_column(
+        Integer, default=5, server_default="5"
     )
     metadata_: Mapped[dict | None] = mapped_column(
         "metadata", JSONB, nullable=True, default=dict

@@ -1,8 +1,8 @@
 # Project Status - StoryForge 2.0
 
-**Last Updated:** 2026-02-07
-**Current Phase:** Phase 1 - MVP Foundation COMPLETE
-**Current Stage:** All 6 stages complete
+**Last Updated:** 2026-02-10
+**Current Phase:** Phase 2 - Intelligence & Consistency
+**Current Stage:** Stage 1 (Content Mode & Story Settings) COMPLETE
 
 ---
 
@@ -214,9 +214,30 @@ Potential next steps (not currently planned):
 
 ---
 
-## Next Session
+### Phase 2, Stage 1: Content Mode & Story Settings
+- [x] Added `content_mode` (VARCHAR, default 'unrestricted'), `auto_illustrate` (BOOLEAN), `context_depth` (INTEGER) to Story model
+- [x] Alembic migration applied: 795905b88fe5
+- [x] Added `writer_model_unrestricted` and `writer_model_safe` to Settings + .env
+- [x] Created `StoryUpdate` Pydantic schema for PATCH operations
+- [x] Added `PATCH /api/stories/{id}` endpoint for updating story settings
+- [x] `StoryCreate` now accepts `content_mode` field
+- [x] `StoryResponse` returns `content_mode`, `auto_illustrate`, `context_depth`
+- [x] `StoryGenerationService` selects writer model and system prompt based on story's `content_mode`
+- [x] Unrestricted mode: creative-freedom system prompt, uses `writer_model_unrestricted` from config
+- [x] Safe mode: family-friendly system prompt, uses `writer_model_safe` from config
+- [x] Frontend: content mode toggle in create-story form (Unrestricted/Safe buttons)
+- [x] Frontend: content mode indicator in writing view header (click to toggle)
+- [x] Frontend: story cards show content mode in metadata
+- [x] CSS: toggle group, content mode indicator with color coding (red=unrestricted, green=safe)
+- [x] Validation rejects invalid content_mode values (regex pattern)
+- [x] All 17 API endpoints verified working
+- [x] Both content modes default to dolphin-mistral:7b until new models are pulled
 
-- [ ] Consider Phase 2 planning
+## Next Steps
+
+- [ ] Pull writer models: Dark Champion 8X4B V2, Gemma 3 27B QAT, Hermes 3 8B
+- [ ] Update .env with new model names once pulled
+- [ ] Phase 2, Stage 2: RAG for Long-Form Memory (see PHASE_2_ROADMAP.md)
 
 ## Blockers
 
@@ -232,7 +253,7 @@ None.
 - Swagger docs at /docs, health check at /health
 - PostgreSQL 17.6 running on port 5432
 - Alembic configured for async (asyncpg + greenlet)
-- Migrations: 67150de53c78 (initial empty) → a1178161be24 (core tables)
+- Migrations: 67150de53c78 (initial empty) → a1178161be24 (core tables) → 795905b88fe5 (content mode + story settings)
 - HNSW indexes use vector_cosine_ops with m=16, ef_construction=64
 - Embedding dimension: 768 (matches nomic-embed-text model)
 - Ollama models: dolphin-mistral:7b (creative writer), phi4:latest (planner), gemma2:9b (visualizer), nomic-embed-text (embeddings)

@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "dolphin-mistral:7b"
 
+    # Writer models per content mode
+    writer_model_unrestricted: str = "dolphin-mistral:7b"
+    writer_model_safe: str = "dolphin-mistral:7b"
+
     # ComfyUI
     comfyui_host: str = "http://localhost:8188"
 

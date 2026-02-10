@@ -18,6 +18,8 @@ let branchBtn;
 let generatingIndicator;
 let activeSceneEl = null;
 
+let contentModeBtn;
+
 export function init(ws) {
   socket = ws;
   scenesContainer = document.getElementById('scenes-container');
@@ -25,9 +27,11 @@ export function init(ws) {
   continueBtn = document.getElementById('continue-btn');
   branchBtn = document.getElementById('branch-btn');
   generatingIndicator = document.getElementById('generating-indicator');
+  contentModeBtn = document.getElementById('content-mode-btn');
 
   continueBtn.addEventListener('click', handleContinue);
   branchBtn.addEventListener('click', handleBranch);
+  contentModeBtn.addEventListener('click', handleToggleContentMode);
 
   promptInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -47,6 +51,7 @@ export async function loadStory(story, openingPrompt = null) {
   currentLeafId = story.current_leaf_id;
 
   document.getElementById('story-title-display').textContent = story.title;
+  updateContentModeDisplay(story.content_mode);
   scenesContainer.innerHTML = '';
 
   // Connect WebSocket (await so send() works immediately after)
@@ -275,6 +280,27 @@ function setInputEnabled(enabled) {
   promptInput.disabled = !enabled;
   continueBtn.disabled = !enabled;
   branchBtn.disabled = !enabled;
+}
+
+function updateContentModeDisplay(mode) {
+  if (!contentModeBtn) return;
+  const isSafe = mode === 'safe';
+  contentModeBtn.textContent = isSafe ? 'Safe' : 'Unrestricted';
+  contentModeBtn.classList.toggle('mode-safe', isSafe);
+  contentModeBtn.classList.toggle('mode-unrestricted', !isSafe);
+}
+
+async function handleToggleContentMode() {
+  if (!currentStory || isGenerating) return;
+  const newMode = currentStory.content_mode === 'safe' ? 'unrestricted' : 'safe';
+  try {
+    const updated = await api.updateStory(currentStory.id, { content_mode: newMode });
+    currentStory.content_mode = updated.content_mode;
+    updateContentModeDisplay(updated.content_mode);
+    showToast(`Content mode: ${updated.content_mode}`, 'success');
+  } catch (err) {
+    showToast('Failed to update content mode: ' + err.message, 'error');
+  }
 }
 
 function scrollToBottom() {
