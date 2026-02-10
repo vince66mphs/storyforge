@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environment
+backend/.venv/
+
+# Environment variables (contains credentials)
+backend/.env
+
+# Generated images (large binary files)
+static/images/*.png
+static/images/*.jpg
+static/images/*.webp
+
+# Exports (user-generated content)
+exports/*.md
+exports/*.json
+
+# Claude Code local config
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryForge 2.0</title>
+  <link rel="stylesheet" href="/app/css/style.css">
+</head>
+<body>
+  <!-- Toast container for notifications -->
+  <div id="toast-container"></div>
+
+  <!-- Lobby View -->
+  <div id="lobby-view" class="view">
+    <header class="lobby-header">
+      <h1>StoryForge <span class="version">2.0</span></h1>
+      <p class="subtitle">AI-powered interactive storytelling</p>
+    </header>
+
+    <section class="lobby-content">
+      <div class="create-form">
+        <h2>New Story</h2>
+        <form id="create-story-form">
+          <div class="form-group">
+            <label for="story-title">Title</label>
+            <input type="text" id="story-title" placeholder="Enter story title..." required>
+          </div>
+          <div class="form-group">
+            <label for="story-genre">Genre <span class="optional">(optional)</span></label>
+            <input type="text" id="story-genre" placeholder="Fantasy, Sci-Fi, Mystery...">
+          </div>
+          <div class="form-group">
+            <label for="story-opening">Opening direction</label>
+            <textarea id="story-opening" placeholder="Describe how the story should begin..." rows="3" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Story</button>
+        </form>
+      </div>
+
+      <div class="story-list-section">
+        <h2>Your Stories</h2>
+        <div id="story-list" class="story-list">
+          <p class="empty-state">Loading stories...</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Writing View -->
+  <div id="writing-view" class="view hidden">
+    <header class="writing-header">
+      <button id="back-btn" class="btn btn-ghost" title="Back to lobby">&larr; Stories</button>
+      <h1 id="story-title-display"></h1>
+      <div class="header-actions">
+        <button id="export-btn" class="btn btn-ghost" title="Export to Markdown">Export</button>
+      </div>
+    </header>
+
+    <div class="writing-layout">
+      <!-- Left Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-section" id="entity-panel">
+          <h3>World Bible</h3>
+          <div class="entity-actions">
+            <button id="detect-entities-btn" class="btn btn-small">Detect Entities</button>
+          </div>
+          <div id="entity-list" class="entity-list">
+            <p class="empty-state">No entities yet</p>
+          </div>
+        </div>
+
+        <div class="sidebar-section" id="tree-panel">
+          <h3>Narrative Tree</h3>
+          <div id="tree-view" class="tree-view">
+            <p class="empty-state">No nodes yet</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="story-main">
+        <div id="scenes-container" class="scenes-container"></div>
+
+        <div id="generating-indicator" class="generating-indicator hidden">
+          <span class="spinner"></span> Generating...
+        </div>
+
+        <div class="prompt-area">
+          <textarea id="prompt-input" placeholder="What happens next? Describe the direction for the next scene..." rows="3"></textarea>
+          <div class="prompt-actions">
+            <button id="continue-btn" class="btn btn-primary">Continue</button>
+            <button id="branch-btn" class="btn btn-secondary" title="Create alternative branch from current scene">Branch</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="/app/js/app.js"></script>
+</body>
+</html>

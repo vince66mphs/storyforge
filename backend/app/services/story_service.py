@@ -1,0 +1,225 @@
+import logging
+import uuid
+from collections.abc import AsyncIterator
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.node import Node
+from app.models.story import Story
+from app.services.ollama_service import OllamaService
+
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT = (
+    "You are a creative fiction writer collaborating with a reader on an interactive story. "
+    "Continue the narrative based on the story so far and the reader's direction. "
+    "Write in vivid, engaging prose. Keep each scene to 2-4 paragraphs. "
+    "End scenes at moments that invite the reader to choose what happens next. "
+    "Do not break the fourth wall or mention that you are an AI."
+)
+
+
+class StoryGenerationService:
+    """Generates story scenes using Ollama with narrative DAG context."""
+
+    def __init__(self):
+        self.ollama = OllamaService()
+
+    async def get_story_context(
+        self,
+        session: AsyncSession,
+        node_id: uuid.UUID,
+        depth: int = 3,
+    ) -> str:
+        """Walk up the ancestor chain to build narrative context.
+
+        Args:
+            session: Active database session.
+            node_id: The node to start from (walks toward root).
+            depth: Maximum number of ancestor nodes to include.
+
+        Returns:
+            Concatenated text of ancestor nodes (oldest first).
+        """
+        ancestors: list[str] = []
+        current_id = node_id
+
+        for _ in range(depth):
+            result = await session.execute(
+                select(Node).where(Node.id == current_id)
+            )
+            node = result.scalar_one_or_none()
+            if node is None:
+                break
+            ancestors.append(node.content)
+            if node.parent_id is None:
+                break
+            current_id = node.parent_id
+
+        # Reverse so oldest ancestor comes first (chronological order)
+        ancestors.reverse()
+        return "\n\n---\n\n".join(ancestors)
+
+    async def generate_scene(
+        self,
+        session: AsyncSession,
+        story_id: uuid.UUID,
+        parent_node_id: uuid.UUID,
+        user_prompt: str,
+    ) -> Node:
+        """Generate a new scene node as a child of the given parent.
+
+        Builds context from ancestor nodes, sends to Ollama, embeds the
+        result, and saves a new Node to the database.
+
+        Args:
+            session: Active database session.
+            story_id: The story this node belongs to.
+            parent_node_id: The parent node to continue from.
+            user_prompt: The reader's direction for this scene.
+
+        Returns:
+            The newly created Node with generated content.
+        """
+        # Build context from ancestor chain
+        context = await self.get_story_context(session, parent_node_id)
+        prompt = self._build_prompt(context, user_prompt)
+
+        logger.info(
+            "Generating scene for story=%s, parent=%s, context_len=%d",
+            story_id, parent_node_id, len(context),
+        )
+
+        # Generate scene text
+        content = await self.ollama.generate(
+            prompt=prompt,
+            system=SYSTEM_PROMPT,
+        )
+
+        # Generate embedding for the new content
+        embedding = await self.ollama.create_embedding(content)
+
+        # Create and persist the new node
+        new_node = Node(
+            story_id=story_id,
+            parent_id=parent_node_id,
+            content=content,
+            embedding=embedding,
+            node_type="scene",
+        )
+        session.add(new_node)
+
+        # Update story's current leaf pointer
+        result = await session.execute(
+            select(Story).where(Story.id == story_id)
+        )
+        story = result.scalar_one()
+        story.current_leaf_id = new_node.id
+
+        await session.commit()
+        await session.refresh(new_node)
+
+        logger.info("Created scene node=%s (%d chars)", new_node.id, len(content))
+        return new_node
+
+    def _build_prompt(self, context: str, user_prompt: str) -> str:
+        return f"Story so far:\n{context}\n\nReader's direction: {user_prompt}\n\nContinue the story:"
+
+    async def generate_scene_stream(
+        self,
+        session: AsyncSession,
+        story_id: uuid.UUID,
+        parent_node_id: uuid.UUID,
+        user_prompt: str,
+    ) -> AsyncIterator[str | Node]:
+        """Stream scene generation, yielding text chunks then the saved Node.
+
+        Yields text chunks as they arrive from Ollama, then saves the
+        completed scene and yields the final Node object as the last item.
+
+        Usage:
+            async for chunk in svc.generate_scene_stream(...):
+                if isinstance(chunk, str):
+                    print(chunk, end="", flush=True)
+                else:
+                    node = chunk  # final Node
+        """
+        context = await self.get_story_context(session, parent_node_id)
+        prompt = self._build_prompt(context, user_prompt)
+
+        logger.info(
+            "Streaming scene for story=%s, parent=%s, context_len=%d",
+            story_id, parent_node_id, len(context),
+        )
+
+        # Stream and collect the full text
+        chunks: list[str] = []
+        async for chunk in self.ollama.generate_stream(
+            prompt=prompt, system=SYSTEM_PROMPT
+        ):
+            chunks.append(chunk)
+            yield chunk
+
+        content = "".join(chunks)
+
+        # Embed and save
+        embedding = await self.ollama.create_embedding(content)
+
+        new_node = Node(
+            story_id=story_id,
+            parent_id=parent_node_id,
+            content=content,
+            embedding=embedding,
+            node_type="scene",
+        )
+        session.add(new_node)
+
+        result = await session.execute(
+            select(Story).where(Story.id == story_id)
+        )
+        story = result.scalar_one()
+        story.current_leaf_id = new_node.id
+
+        await session.commit()
+        await session.refresh(new_node)
+
+        logger.info("Created scene node=%s (%d chars)", new_node.id, len(content))
+        yield new_node
+
+    async def create_branch(
+        self,
+        session: AsyncSession,
+        node_id: uuid.UUID,
+        user_prompt: str,
+    ) -> Node:
+        """Create an alternative branch from the same parent as the given node.
+
+        This generates a sibling scene — an alternative continuation from
+        the same point in the story.
+
+        Args:
+            session: Active database session.
+            node_id: An existing node whose parent will be the branch point.
+            user_prompt: The reader's alternative direction.
+
+        Returns:
+            The newly created branch Node.
+        """
+        # Load the reference node to find its parent and story
+        result = await session.execute(
+            select(Node).where(Node.id == node_id)
+        )
+        node = result.scalar_one()
+
+        if node.parent_id is None:
+            raise ValueError("Cannot branch from the root node — it has no parent")
+
+        logger.info("Branching from parent=%s (sibling of node=%s)", node.parent_id, node_id)
+
+        return await self.generate_scene(
+            session=session,
+            story_id=node.story_id,
+            parent_node_id=node.parent_id,
+            user_prompt=user_prompt,
+        )

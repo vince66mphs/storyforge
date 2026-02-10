@@ -1,0 +1,152 @@
+"""WebSocket endpoint for streaming story generation."""
+
+import json
+import logging
+import uuid
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+
+from app.core.database import async_session
+from app.core.exceptions import (
+    GenerationError,
+    ServiceTimeoutError,
+    ServiceUnavailableError,
+)
+from app.models.node import Node
+from app.models.story import Story
+from app.services.story_service import StoryGenerationService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+story_svc = StoryGenerationService()
+
+
+def _node_to_dict(node: Node) -> dict:
+    """Convert a Node to a JSON-serializable dict matching NodeResponse."""
+    return {
+        "id": str(node.id),
+        "story_id": str(node.story_id),
+        "parent_id": str(node.parent_id) if node.parent_id else None,
+        "content": node.content,
+        "summary": node.summary,
+        "node_type": node.node_type,
+        "created_at": node.created_at.isoformat(),
+    }
+
+
+def _error_msg(message: str, error_type: str = "error", service: str | None = None) -> dict:
+    """Build a structured error message for WebSocket clients."""
+    msg = {"type": "error", "message": message, "error_type": error_type}
+    if service:
+        msg["service"] = service
+    return msg
+
+
+@router.websocket("/ws/generate")
+async def websocket_generate(ws: WebSocket):
+    await ws.accept()
+    logger.info("WebSocket client connected")
+
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await ws.send_json(_error_msg("Invalid JSON", "parse_error"))
+                continue
+
+            action = msg.get("action")
+            if action not in ("generate", "branch"):
+                await ws.send_json(_error_msg(f"Unknown action: {action}", "invalid_action"))
+                continue
+
+            try:
+                if action == "generate":
+                    await _handle_generate(ws, msg)
+                elif action == "branch":
+                    await _handle_branch(ws, msg)
+            except ServiceUnavailableError as e:
+                logger.error("Service unavailable during WS %s: %s", action, e)
+                await ws.send_json(_error_msg(str(e), "service_unavailable", e.service))
+            except ServiceTimeoutError as e:
+                logger.error("Service timeout during WS %s: %s", action, e)
+                await ws.send_json(_error_msg(str(e), "service_timeout", e.service))
+            except GenerationError as e:
+                logger.error("Generation error during WS %s: %s", action, e)
+                await ws.send_json(_error_msg(str(e), "generation_error", e.service))
+            except Exception as e:
+                logger.exception("Unexpected error handling WebSocket action=%s", action)
+                await ws.send_json(_error_msg(f"Internal error: {e}", "internal_error"))
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+
+
+async def _handle_generate(ws: WebSocket, msg: dict):
+    story_id = uuid.UUID(msg["story_id"])
+    prompt = msg["prompt"]
+    parent_node_id = msg.get("parent_node_id")
+
+    async with async_session() as session:
+        # Resolve parent node
+        if parent_node_id:
+            parent_id = uuid.UUID(parent_node_id)
+        else:
+            result = await session.execute(
+                select(Story).where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if story is None:
+                await ws.send_json(_error_msg("Story not found", "not_found"))
+                return
+            if story.current_leaf_id is None:
+                await ws.send_json(_error_msg("Story has no current leaf", "invalid_state"))
+                return
+            parent_id = story.current_leaf_id
+
+        # Stream generation
+        async for chunk in story_svc.generate_scene_stream(
+            session=session,
+            story_id=story_id,
+            parent_node_id=parent_id,
+            user_prompt=prompt,
+        ):
+            if isinstance(chunk, str):
+                await ws.send_json({"type": "token", "content": chunk})
+            else:
+                await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})
+
+
+async def _handle_branch(ws: WebSocket, msg: dict):
+    story_id = uuid.UUID(msg["story_id"])
+    node_id = uuid.UUID(msg["node_id"])
+    prompt = msg["prompt"]
+
+    async with async_session() as session:
+        # Find the reference node's parent
+        result = await session.execute(
+            select(Node).where(Node.id == node_id)
+        )
+        ref_node = result.scalar_one_or_none()
+        if ref_node is None:
+            await ws.send_json(_error_msg("Node not found", "not_found"))
+            return
+        if ref_node.parent_id is None:
+            await ws.send_json(_error_msg("Cannot branch from root node", "invalid_state"))
+            return
+
+        # Stream generation from the same parent
+        async for chunk in story_svc.generate_scene_stream(
+            session=session,
+            story_id=story_id,
+            parent_node_id=ref_node.parent_id,
+            user_prompt=prompt,
+        ):
+            if isinstance(chunk, str):
+                await ws.send_json({"type": "token", "content": chunk})
+            else:
+                await ws.send_json({"type": "complete", "node": _node_to_dict(chunk)})
