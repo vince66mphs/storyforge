@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-10
 **Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stage 5.1 (Test Suite) — COMPLETE
+**Current Stage:** Stages 5.2 & 5.3 (UI Polish & CLI Improvements) — COMPLETE
 
 ---
 
@@ -374,12 +374,44 @@ Potential next steps (not currently planned):
 - [x] No live Ollama/ComfyUI required — all external services mocked
 - [x] Integration tests use real PostgreSQL with pgvector for accurate query testing
 
+### Phase 2, Stages 5.2 & 5.3: UI Polish & CLI Improvements — COMPLETE
+- [x] **ModelNotFoundError exception** — new `ModelNotFoundError(GenerationError)` subclass with `model_name` attribute
+  - OllamaService detects "not found" in ResponseError across generate, stream, and embed
+  - WebSocket handler catches before GenerationError, sends `error_type: "model_not_found"`
+  - Global REST exception handler returns 502 with `model_name` field
+  - Frontend: user-friendly "run ollama pull" message in story-writer.js and entity-panel.js
+- [x] **Settings panel** — gear icon dropdown replacing individual header buttons
+  - Content mode toggle group (Unrestricted/Safe)
+  - Auto-illustrate checkbox
+  - Context depth range slider (1–20) with 300ms debounce API call
+  - Click-outside-to-close behavior
+  - All controls sync to current story state on load
+- [x] **Persistent continuity warnings** — inline `.scene-warning-item` elements below scenes
+  - Shown in both `appendScene` (loaded scenes) and `handleComplete` (new scenes)
+  - Still also shown as ephemeral toasts
+- [x] **Illustration loading state** — "Illustrating..." placeholder with spinner in `.scene-illustration`
+  - Appears when auto-illustrate is enabled after scene completion
+  - Auto-cleared when WebSocket illustration message replaces contents
+- [x] **Enhanced multi-step progress** — replaces simple text with step indicator
+  - Planning → Writing (→ Illustrating if auto-illustrate on)
+  - Active/done/pending step styling with arrow separators
+- [x] **CLI `/mode` command** — view or set content mode (`/mode safe`, `/mode unrestricted`)
+  - Color-coded display (red=unrestricted, green=safe)
+- [x] **CLI `/context` command** — shows assembled RAG context for current scene
+  - Uses ContextService.build_context() with story's context_depth
+  - Color-coded section headers ([RECENT SCENES], [WORLD BIBLE], [RELEVANT HISTORY])
+  - Handles root node, no story, and ServiceUnavailableError
+- [x] **CLI `/status` updated** — now shows content mode, auto-illustrate, and context depth
+- [x] **7 new tests** (169 total, all passing in ~3s)
+  - test_model_not_found_error (generate), test_other_response_error (generate)
+  - test_stream_model_not_found, test_embed_model_not_found
+  - test_model_not_found_ws_error (WebSocket integration)
+  - test_model_not_found_error_attributes, test_is_subclass, test_custom_detail
+
 ## Next Steps
 
-1. Phase 2, Stage 5.2: Incremental UI improvements (story settings panel, inline illustrations, beat display, continuity warnings, loading states)
-2. Phase 2, Stage 5.3: CLI improvements (/mode, /context commands, updated /status)
-3. Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B) — see PHASE_2_ROADMAP.md "New Model Requirements"
-4. Phase 3 planning (React frontend rewrite, audio narration, EPUB export, etc.)
+1. Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B) — see PHASE_2_ROADMAP.md "New Model Requirements"
+2. Phase 3 planning (React frontend rewrite, audio narration, EPUB export, etc.)
 
 ## Blockers
 

@@ -138,7 +138,9 @@ async function handleDetect() {
 
     await loadEntities(story.id);
   } catch (err) {
-    if (err instanceof ApiError && err.isServiceUnavailable) {
+    if (err instanceof ApiError && err.errorType === 'model_not_found') {
+      showToast('Model not found. Run "ollama pull <model>" on the server.', 'error');
+    } else if (err instanceof ApiError && err.isServiceUnavailable) {
       showToast(`Entity detection unavailable — ${err.service || 'Ollama'} is not running`, 'error');
     } else if (err instanceof ApiError && err.isTimeout) {
       showToast('Entity detection timed out. Try again later.', 'error');
@@ -165,7 +167,9 @@ async function generateImage(entity, element) {
     if (idx >= 0) entityList[idx] = updated;
     render();
   } catch (err) {
-    if (err instanceof ApiError && err.isServiceUnavailable) {
+    if (err instanceof ApiError && err.errorType === 'model_not_found') {
+      showToast('Model not found. Run "ollama pull <model>" on the server.', 'error');
+    } else if (err instanceof ApiError && err.isServiceUnavailable) {
       showToast(`Image generation unavailable — ${err.service || 'ComfyUI'} is not running`, 'error');
     } else if (err instanceof ApiError && err.isTimeout) {
       showToast('Image generation timed out. Try again later.', 'error');

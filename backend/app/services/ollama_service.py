@@ -7,6 +7,7 @@ from ollama import AsyncClient, ResponseError
 from app.core.config import get_settings
 from app.core.exceptions import (
     GenerationError,
+    ModelNotFoundError,
     ServiceTimeoutError,
     ServiceUnavailableError,
 )
@@ -64,6 +65,8 @@ class OllamaService:
         except httpx.TimeoutException as e:
             raise ServiceTimeoutError(SERVICE_NAME, timeout=0, detail=str(e)) from e
         except ResponseError as e:
+            if "not found" in str(e).lower():
+                raise ModelNotFoundError(model, str(e)) from e
             raise GenerationError(SERVICE_NAME, str(e)) from e
         except Exception as e:
             raise GenerationError(SERVICE_NAME, str(e)) from e
@@ -111,6 +114,8 @@ class OllamaService:
         except httpx.TimeoutException as e:
             raise ServiceTimeoutError(SERVICE_NAME, timeout=0, detail=str(e)) from e
         except ResponseError as e:
+            if "not found" in str(e).lower():
+                raise ModelNotFoundError(model, str(e)) from e
             raise GenerationError(SERVICE_NAME, str(e)) from e
         except Exception as e:
             raise GenerationError(SERVICE_NAME, str(e)) from e
@@ -146,6 +151,8 @@ class OllamaService:
         except httpx.TimeoutException as e:
             raise ServiceTimeoutError(SERVICE_NAME, timeout=0, detail=str(e)) from e
         except ResponseError as e:
+            if "not found" in str(e).lower():
+                raise ModelNotFoundError(self.embed_model, str(e)) from e
             raise GenerationError(SERVICE_NAME, f"embedding failed: {e}") from e
         except Exception as e:
             raise GenerationError(SERVICE_NAME, f"embedding failed: {e}") from e

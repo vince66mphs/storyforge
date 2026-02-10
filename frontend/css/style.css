@@ -494,13 +494,6 @@ label {
   padding: 2px 8px;
 }
 
-/* ── Auto-Illustrate Toggle ─────────────────────────────────────── */
-
-#auto-illustrate-btn.active {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-
 /* ── Scene Beat (expandable planner output) ──────────────────────── */
 
 .scene-beat {
@@ -624,21 +617,142 @@ label {
   color: #fff;
 }
 
-.content-mode-indicator {
-  font-size: 0.8rem;
-  padding: 4px 12px;
+/* ── Settings Panel ───────────────────────────────────────────────── */
+
+.settings-panel {
+  position: absolute;
+  top: var(--header-height);
+  right: 16px;
+  width: 300px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  z-index: 100;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.settings-panel h4 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.settings-group {
+  margin-bottom: 14px;
+}
+
+.settings-group:last-child {
+  margin-bottom: 0;
+}
+
+.settings-group label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.settings-checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px !important;
+  color: var(--text-primary) !important;
+}
+
+.settings-checkbox-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.context-depth-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.context-depth-slider input[type="range"] {
+  flex: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--accent);
+  height: 20px;
+}
+
+.context-depth-slider span {
+  min-width: 24px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* ── Scene Warnings (persistent inline) ──────────────────────────── */
+
+.scene-warnings {
+  margin-top: 8px;
+}
+
+.scene-warning-item {
+  font-size: 13px;
+  color: var(--warning);
+  border-left: 3px solid var(--warning);
+  background: rgba(218, 170, 63, 0.08);
+  padding: 4px 10px;
+  margin-bottom: 4px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ── Illustration Loading ────────────────────────────────────────── */
+
+.illustration-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ── Multi-Step Progress ─────────────────────────────────────────── */
+
+.gen-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gen-step {
+  padding: 2px 8px;
   border-radius: var(--radius-sm);
-  transition: background 0.15s, color 0.15s;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
-.content-mode-indicator.mode-unrestricted {
-  background: rgba(229, 83, 75, 0.15);
-  color: var(--danger);
+.gen-step.step-active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-dim);
 }
 
-.content-mode-indicator.mode-safe {
-  background: rgba(87, 171, 90, 0.15);
+.gen-step.step-done {
   color: var(--success);
+}
+
+.gen-step.step-pending {
+  color: var(--text-dim);
+}
+
+.step-arrow {
+  color: var(--text-dim);
+  font-size: 11px;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────── */

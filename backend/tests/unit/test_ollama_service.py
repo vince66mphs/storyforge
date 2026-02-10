@@ -8,6 +8,7 @@ from ollama import ResponseError
 
 from app.core.exceptions import (
     GenerationError,
+    ModelNotFoundError,
     ServiceTimeoutError,
     ServiceUnavailableError,
 )
@@ -56,7 +57,13 @@ class TestGenerate:
         with pytest.raises(ServiceTimeoutError):
             await svc.generate("Hello")
 
-    async def test_response_error_raises_generation_error(self, svc, mock_ollama_client):
+    async def test_model_not_found_error(self, svc, mock_ollama_client):
+        mock_ollama_client.chat.side_effect = ResponseError("model 'foo' not found")
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            await svc.generate("Hello", model="foo:latest")
+        assert exc_info.value.model_name == "foo:latest"
+
+    async def test_other_response_error_raises_generation_error(self, svc, mock_ollama_client):
         mock_ollama_client.chat.side_effect = ResponseError("bad model")
         with pytest.raises(GenerationError):
             await svc.generate("Hello")
@@ -93,6 +100,12 @@ class TestGenerateStream:
             async for _ in svc.generate_stream("Hello"):
                 pass
 
+    async def test_stream_model_not_found(self, svc, mock_ollama_client):
+        mock_ollama_client.chat.side_effect = ResponseError("model 'x' not found")
+        with pytest.raises(ModelNotFoundError):
+            async for _ in svc.generate_stream("Hello", model="x"):
+                pass
+
     async def test_stream_skips_empty_chunks(self, svc, mock_ollama_client):
         chunk1 = MagicMock()
         chunk1.message.content = "data"
@@ -122,6 +135,11 @@ class TestCreateEmbedding:
     async def test_connect_error(self, svc, mock_ollama_client):
         mock_ollama_client.embed.side_effect = httpx.ConnectError("refused")
         with pytest.raises(ServiceUnavailableError):
+            await svc.create_embedding("test")
+
+    async def test_embed_model_not_found(self, svc, mock_ollama_client):
+        mock_ollama_client.embed.side_effect = ResponseError("model 'nomic' not found")
+        with pytest.raises(ModelNotFoundError):
             await svc.create_embedding("test")
 
     async def test_response_error(self, svc, mock_ollama_client):

@@ -1,4 +1,4 @@
-"""Tests for Pydantic schemas — pure validation, no mocking."""
+"""Tests for Pydantic schemas and exception classes."""
 
 import uuid
 from datetime import datetime, timezone
@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
+from app.core.exceptions import GenerationError, ModelNotFoundError
 from app.api.schemas import (
     StoryCreate,
     StoryUpdate,
@@ -130,3 +131,22 @@ class TestDetectEntitiesRequest:
     def test_empty_rejected(self):
         with pytest.raises(ValidationError):
             DetectEntitiesRequest(text="")
+
+
+# ── ModelNotFoundError ──────────────────────────────────────────────
+
+class TestModelNotFoundError:
+    def test_attributes(self):
+        err = ModelNotFoundError("phi4:latest")
+        assert err.model_name == "phi4:latest"
+        assert err.service == "Ollama"
+        assert "phi4:latest" in str(err)
+        assert "ollama pull" in str(err)
+
+    def test_is_subclass_of_generation_error(self):
+        err = ModelNotFoundError("test-model")
+        assert isinstance(err, GenerationError)
+
+    def test_custom_detail(self):
+        err = ModelNotFoundError("foo", detail="custom message")
+        assert "custom message" in str(err)

@@ -11,7 +11,9 @@ from app.core.database import async_session
 from app.models.node import Node
 from app.models.story import Story
 from app.models.world_bible import WorldBibleEntity
+from app.core.exceptions import ServiceUnavailableError
 from app.services.asset_service import AssetService
+from app.services.context_service import ContextService
 from app.services.illustration_service import IllustrationService
 from app.services.story_service import StoryGenerationService
 
@@ -50,20 +52,22 @@ def error(text: str):
 
 HELP_TEXT = f"""
 {BOLD}Commands:{RESET}
-  {CYAN}/new{RESET}          Create a new story
-  {CYAN}/load{RESET}         Load an existing story
-  {CYAN}/status{RESET}       Show current story info
-  {CYAN}/tree{RESET}         Show the narrative tree
-  {CYAN}/branch{RESET}       Create an alternative from the current scene
-  {CYAN}/goto <n>{RESET}     Jump to a node by tree number
-  {CYAN}/beat{RESET}         Show the planner beat for the current scene
-  {CYAN}/entities{RESET}     List world bible entities
-  {CYAN}/detect{RESET}       Auto-detect entities in current scene
-  {CYAN}/image <n>{RESET}    Generate image for entity by number
-  {CYAN}/illustrate{RESET}   Generate scene illustration for current node
-  {CYAN}/export{RESET}       Export story to markdown
-  {CYAN}/help{RESET}         Show this help
-  {CYAN}/quit{RESET}         Exit
+  {CYAN}/new{RESET}              Create a new story
+  {CYAN}/load{RESET}             Load an existing story
+  {CYAN}/status{RESET}           Show current story info
+  {CYAN}/mode [safe|unrestricted]{RESET}  View or set content mode
+  {CYAN}/context{RESET}          Show assembled RAG context for current scene
+  {CYAN}/tree{RESET}             Show the narrative tree
+  {CYAN}/branch{RESET}           Create an alternative from the current scene
+  {CYAN}/goto <n>{RESET}         Jump to a node by tree number
+  {CYAN}/beat{RESET}             Show the planner beat for the current scene
+  {CYAN}/entities{RESET}         List world bible entities
+  {CYAN}/detect{RESET}           Auto-detect entities in current scene
+  {CYAN}/image <n>{RESET}        Generate image for entity by number
+  {CYAN}/illustrate{RESET}       Generate scene illustration for current node
+  {CYAN}/export{RESET}           Export story to markdown
+  {CYAN}/help{RESET}             Show this help
+  {CYAN}/quit{RESET}             Exit
 
   {DIM}Anything else is treated as a direction for the next scene.{RESET}
 """
@@ -76,6 +80,7 @@ class StoryForgeCLI:
         self.story_svc = StoryGenerationService()
         self.asset_svc = AssetService()
         self.illustration_svc = IllustrationService()
+        self.context_svc = ContextService()
         self.story: Story | None = None
         self.current_node: Node | None = None
 
@@ -139,6 +144,10 @@ class StoryForgeCLI:
                     await self._generate_image(arg)
                 elif cmd == "/illustrate":
                     await self._illustrate_scene()
+                elif cmd == "/mode":
+                    await self._set_mode(arg)
+                elif cmd == "/context":
+                    await self._show_context()
                 elif cmd == "/beat":
                     await self._show_beat()
                 elif cmd == "/export":
@@ -268,6 +277,13 @@ class StoryForgeCLI:
         print(f"  {BOLD}Entities:{RESET} {len(entities)}")
         if self.current_node:
             print(f"  {BOLD}Current:{RESET}  {self.current_node.node_type} ({self.current_node.id})")
+        # Story settings
+        mode = self.story.content_mode or "unrestricted"
+        mode_color = RED if mode == "unrestricted" else GREEN
+        print(f"  {BOLD}Mode:{RESET}     {mode_color}{mode}{RESET}")
+        ai_label = f"{GREEN}On{RESET}" if self.story.auto_illustrate else f"{DIM}Off{RESET}"
+        print(f"  {BOLD}Auto-Ill:{RESET} {ai_label}")
+        print(f"  {BOLD}Context:{RESET}  {self.story.context_depth} ancestors")
 
     # ── Tree Navigation ───────────────────────────────────────────────
 
@@ -442,6 +458,66 @@ class StoryForgeCLI:
             if node.continuity_warnings:
                 for w in node.continuity_warnings:
                     warn(f"Continuity: {w}")
+
+    # ── Mode & Context ─────────────────────────────────────────────────
+
+    async def _set_mode(self, arg: str):
+        if not self.story:
+            warn("No story loaded. Use /new or /load.")
+            return
+
+        arg = arg.strip().lower()
+        if not arg:
+            mode = self.story.content_mode or "unrestricted"
+            mode_color = RED if mode == "unrestricted" else GREEN
+            info(f"Current mode: {mode_color}{mode}{RESET}")
+            print(f"  {DIM}Usage: /mode safe  or  /mode unrestricted{RESET}")
+            return
+
+        if arg not in ("safe", "unrestricted"):
+            error(f"Invalid mode: '{arg}'. Use 'safe' or 'unrestricted'.")
+            return
+
+        self.story.content_mode = arg
+        await self.session.commit()
+        await self.session.refresh(self.story)
+        mode_color = RED if arg == "unrestricted" else GREEN
+        info(f"Content mode set to {mode_color}{arg}{RESET}")
+
+    async def _show_context(self):
+        if not self.story or not self.current_node:
+            warn("No story loaded. Use /new or /load.")
+            return
+
+        if self.current_node.node_type == "root":
+            warn("Cannot show context for the root node. Generate a scene first.")
+            return
+
+        info("Building RAG context...")
+
+        try:
+            context = await self.context_svc.build_context(
+                session=self.session,
+                story_id=self.story.id,
+                parent_node_id=self.current_node.id,
+                user_prompt="(context preview)",
+                ancestor_depth=self.story.context_depth,
+            )
+        except ServiceUnavailableError as e:
+            error(f"Cannot build context: {e}")
+            return
+
+        if not context:
+            warn("No context assembled (story may be too short).")
+            return
+
+        print(header("RAG Context"))
+        # Color-code section headers
+        for line in context.split("\n"):
+            if line.startswith("[") and line.endswith("]"):
+                print(f"  {CYAN}{BOLD}{line}{RESET}")
+            else:
+                print(f"  {line}")
 
     # ── Beat Display ─────────────────────────────────────────────────
 

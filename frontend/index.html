@@ -60,11 +60,34 @@
       <button id="back-btn" class="btn btn-ghost" title="Back to lobby">&larr; Stories</button>
       <h1 id="story-title-display"></h1>
       <div class="header-actions">
-        <button id="auto-illustrate-btn" class="btn btn-ghost btn-small" title="Toggle auto-illustrate for new scenes">Auto-Illust: Off</button>
-        <button id="content-mode-btn" class="btn btn-ghost content-mode-indicator" title="Toggle content mode">Unrestricted</button>
+        <button id="settings-btn" class="btn btn-ghost btn-small" title="Story settings">Settings</button>
         <button id="export-btn" class="btn btn-ghost" title="Export to Markdown">Export</button>
       </div>
     </header>
+
+    <div id="settings-panel" class="settings-panel hidden">
+      <h4>Story Settings</h4>
+      <div class="settings-group">
+        <label>Content Mode</label>
+        <div class="toggle-group">
+          <button type="button" class="toggle-btn" data-mode="unrestricted" id="settings-mode-unrestricted">Unrestricted</button>
+          <button type="button" class="toggle-btn" data-mode="safe" id="settings-mode-safe">Safe</button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <label class="settings-checkbox-label">
+          <input type="checkbox" id="settings-auto-illustrate">
+          Auto-illustrate new scenes
+        </label>
+      </div>
+      <div class="settings-group">
+        <label for="settings-context-depth">Context Depth</label>
+        <div class="context-depth-slider">
+          <input type="range" id="settings-context-depth" min="1" max="20" value="3">
+          <span id="settings-context-depth-value">3</span>
+        </div>
+      </div>
+    </div>
 
     <div class="writing-layout">
       <!-- Left Sidebar -->

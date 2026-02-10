@@ -40,3 +40,14 @@ class GenerationError(StoryForgeError):
         if detail:
             msg += f": {detail}"
         super().__init__(msg)
+
+
+class ModelNotFoundError(GenerationError):
+    """Raised when a requested model is not available in Ollama."""
+
+    def __init__(self, model_name: str, detail: str = ""):
+        self.model_name = model_name
+        super().__init__(
+            "Ollama",
+            detail or f"model '{model_name}' not found — run: ollama pull {model_name}",
+        )

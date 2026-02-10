@@ -10,6 +10,7 @@ from app.api.websocket import router as ws_router
 from app.core.config import get_settings
 from app.core.exceptions import (
     GenerationError,
+    ModelNotFoundError,
     ServiceTimeoutError,
     ServiceUnavailableError,
     StoryForgeError,
@@ -50,6 +51,20 @@ async def service_timeout_handler(request: Request, exc: ServiceTimeoutError):
             "detail": str(exc),
             "service": exc.service,
             "error_type": "service_timeout",
+        },
+    )
+
+
+@app.exception_handler(ModelNotFoundError)
+async def model_not_found_handler(request: Request, exc: ModelNotFoundError):
+    logger.error("Model not found: %s", exc)
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": str(exc),
+            "service": exc.service,
+            "error_type": "model_not_found",
+            "model_name": exc.model_name,
         },
     )
 

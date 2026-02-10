@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.core.database import async_session
 from app.core.exceptions import (
     GenerationError,
+    ModelNotFoundError,
     ServiceTimeoutError,
     ServiceUnavailableError,
 )
@@ -82,6 +83,10 @@ async def websocket_generate(ws: WebSocket):
             except ServiceTimeoutError as e:
                 logger.error("Service timeout during WS %s: %s", action, e)
                 await ws.send_json(_error_msg(str(e), "service_timeout", e.service))
+            # ModelNotFoundError must be caught before GenerationError (its parent)
+            except ModelNotFoundError as e:
+                logger.error("Model not found during WS %s: %s", action, e)
+                await ws.send_json(_error_msg(str(e), "model_not_found", e.service))
             except GenerationError as e:
                 logger.error("Generation error during WS %s: %s", action, e)
                 await ws.send_json(_error_msg(str(e), "generation_error", e.service))
