@@ -61,7 +61,13 @@
       <h1 id="story-title-display"></h1>
       <div class="header-actions">
         <button id="settings-btn" class="btn btn-ghost btn-small" title="Story settings">Settings</button>
-        <button id="export-btn" class="btn btn-ghost" title="Export to Markdown">Export</button>
+        <div class="export-wrapper">
+          <button id="export-btn" class="btn btn-ghost" title="Export story">Export</button>
+          <div id="export-dropdown" class="export-dropdown hidden">
+            <button id="export-md" class="export-option">Markdown</button>
+            <button id="export-epub" class="export-option">EPUB</button>
+          </div>
+        </div>
       </div>
     </header>
 

@@ -11,7 +11,7 @@ import * as treeView from './tree-view.js';
 import * as lightbox from './lightbox.js';
 import * as imageGrid from './image-grid.js';
 import * as entityDetail from './entity-detail.js';
-import { exportMarkdownUrl } from './api.js';
+import { exportMarkdownUrl, exportEpubUrl } from './api.js';
 
 // ── State ────────────────────────────────────────────────────────────
 
@@ -64,10 +64,31 @@ function init() {
 
   // Header buttons
   document.getElementById('back-btn').addEventListener('click', openLobby);
-  document.getElementById('export-btn').addEventListener('click', () => {
+  // Export dropdown
+  const exportBtn = document.getElementById('export-btn');
+  const exportDropdown = document.getElementById('export-dropdown');
+
+  exportBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportDropdown.classList.toggle('hidden');
+  });
+
+  document.getElementById('export-md').addEventListener('click', () => {
     const story = storyWriter.getCurrentStory();
     if (!story) return;
     window.open(exportMarkdownUrl(story.id), '_blank');
+    exportDropdown.classList.add('hidden');
+  });
+
+  document.getElementById('export-epub').addEventListener('click', () => {
+    const story = storyWriter.getCurrentStory();
+    if (!story) return;
+    window.open(exportEpubUrl(story.id), '_blank');
+    exportDropdown.classList.add('hidden');
+  });
+
+  document.addEventListener('click', () => {
+    exportDropdown.classList.add('hidden');
   });
 
   // Global Escape key handler — closes topmost modal first

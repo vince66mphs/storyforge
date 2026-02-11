@@ -155,6 +155,26 @@ class TestExportMarkdown:
         assert resp.status_code == 404
 
 
+class TestExportEpub:
+    async def test_export(self, client: AsyncClient):
+        create_resp = await client.post(
+            "/api/stories", json={"title": "EPUB Export Test", "genre": "sci-fi"}
+        )
+        story_id = create_resp.json()["id"]
+
+        resp = await client.get(f"/api/stories/{story_id}/export/epub")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/epub+zip"
+        assert "EPUB Export Test.epub" in resp.headers.get("content-disposition", "")
+        # EPUB files are ZIP archives — check magic bytes
+        assert resp.content[:2] == b"PK"
+
+    async def test_export_nonexistent(self, client: AsyncClient):
+        fake_id = str(uuid.uuid4())
+        resp = await client.get(f"/api/stories/{fake_id}/export/epub")
+        assert resp.status_code == 404
+
+
 class TestCheckContinuity:
     async def test_nonexistent_story(self, client: AsyncClient):
         fake_id = str(uuid.uuid4())

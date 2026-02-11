@@ -435,11 +435,30 @@ The entity panel has been upgraded from minimal (auto-detect, tiny thumbnails, c
 - Unit: ImageSelectRequest schema, OllamaService.generate_vision (success + errors), AssetService (generate_entity_images, select_entity_image, describe_entity_from_image)
 - Integration: SSE image generation endpoint, image select endpoint, describe endpoint (success + 400 no image)
 
+### EPUB Export — COMPLETE
+- [x] Added `ebooklib==0.18` dependency
+- [x] Created `app/services/epub_service.py` — `build_epub()` function:
+  - Title page with story title + genre
+  - World Bible chapter with entities grouped by type (Characters/Locations/Props), embedded reference images
+  - Scene chapters with cleaned prose + embedded illustrations
+  - Minimal CSS stylesheet for readable typography
+  - Graceful handling of missing image files
+  - HTML entity escaping for all content
+- [x] New endpoint: `GET /api/stories/{id}/export/epub` — mirrors markdown export tree-walking pattern
+  - Returns `application/epub+zip` with Content-Disposition attachment header
+  - Walks leaf-to-root path, cleans content via `clean_model_output()`
+  - Embeds images from static_dir/images
+- [x] Frontend: Export button replaced with dropdown (Markdown / EPUB options)
+  - `.export-wrapper` with `.export-dropdown` positioned below button
+  - Click-outside-to-close behavior
+- [x] 10 new tests (242 total, all passing):
+  - Unit: basic output, valid ZIP, file structure, entities, missing images, embedded images, no genre, HTML escaping
+  - Integration: EPUB endpoint 200 + content-type, 404 for nonexistent story
+
 ### Future Phase 3 Work (Not Yet Started)
 - Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B)
 - React/TypeScript frontend rewrite with React Flow DAG editor
 - Audio narration / TTS
-- EPUB export
 - PuLID advanced face consistency
 - LoRA training pipeline
 

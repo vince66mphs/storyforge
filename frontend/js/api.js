@@ -180,3 +180,7 @@ export function checkContinuity(storyId) {
 export function exportMarkdownUrl(storyId) {
   return `/api/stories/${storyId}/export/markdown`;
 }
+
+export function exportEpubUrl(storyId) {
+  return `/api/stories/${storyId}/export/epub`;
+}

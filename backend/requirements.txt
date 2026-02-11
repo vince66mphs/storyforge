@@ -21,6 +21,7 @@ ollama==0.4.7
 # Utilities
 python-dotenv==1.0.1
 aiofiles==24.1.0
+ebooklib==0.18
 
 # Development
 black==24.10.0

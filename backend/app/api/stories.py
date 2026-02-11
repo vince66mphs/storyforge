@@ -13,10 +13,12 @@ from app.api.schemas import (
     StoryResponse,
     StoryUpdate,
 )
+from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
 from app.models.world_bible import WorldBibleEntity
+from app.services.epub_service import build_epub
 from app.services.planner_service import PlannerService
 from app.services.text_utils import clean_model_output
 
@@ -197,6 +199,80 @@ async def export_story_markdown(
     return Response(
         content=content,
         media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{story_id}/export/epub")
+async def export_story_epub(
+    story_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    """Export story as an EPUB file download."""
+    result = await session.execute(select(Story).where(Story.id == story_id))
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.current_leaf_id is None:
+        raise HTTPException(status_code=400, detail="Story has no content to export")
+
+    # Walk from current leaf to root
+    path_nodes: list[Node] = []
+    current_id = story.current_leaf_id
+    while current_id is not None:
+        result = await session.execute(select(Node).where(Node.id == current_id))
+        node = result.scalar_one_or_none()
+        if node is None:
+            break
+        path_nodes.append(node)
+        current_id = node.parent_id
+    path_nodes.reverse()
+
+    # Get entities
+    result = await session.execute(
+        select(WorldBibleEntity)
+        .where(WorldBibleEntity.story_id == story_id)
+        .order_by(WorldBibleEntity.entity_type, WorldBibleEntity.name)
+    )
+    entities = list(result.scalars().all())
+
+    # Build scene dicts (skip root)
+    scenes = []
+    for node in path_nodes:
+        if node.node_type == "root":
+            continue
+        scenes.append({
+            "content": clean_model_output(node.content),
+            "illustration_path": node.illustration_path,
+        })
+
+    # Build entity dicts
+    entity_dicts = [
+        {
+            "name": e.name,
+            "entity_type": e.entity_type,
+            "description": e.description,
+            "reference_image_path": e.reference_image_path,
+        }
+        for e in entities
+    ]
+
+    settings = get_settings()
+    epub_bytes = build_epub(
+        title=story.title,
+        genre=story.genre,
+        scenes=scenes,
+        entities=entity_dicts,
+        static_dir=settings.static_dir,
+    )
+
+    safe_title = "".join(c if c.isalnum() or c in " -_" else "" for c in story.title)
+    filename = f"{safe_title}.epub"
+
+    return Response(
+        content=epub_bytes,
+        media_type="application/epub+zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
