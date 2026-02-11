@@ -45,6 +45,14 @@ export function init(ws) {
   // Settings panel
   initSettingsPanel();
 
+  // Continuity check
+  const continuityBtn = document.getElementById('settings-check-continuity');
+  if (continuityBtn) continuityBtn.addEventListener('click', handleCheckContinuity);
+  const continuityClose = document.getElementById('continuity-close');
+  if (continuityClose) continuityClose.addEventListener('click', () => {
+    document.getElementById('continuity-overlay').classList.add('hidden');
+  });
+
   // WebSocket handlers
   socket.onToken = handleToken;
   socket.onPhase = handlePhase;
@@ -493,6 +501,40 @@ async function setContextDepth(depth) {
     showToast(`Context depth: ${updated.context_depth}`, 'success');
   } catch (err) {
     showToast('Failed to update context depth: ' + err.message, 'error');
+  }
+}
+
+// ── Continuity Check ─────────────────────────────────────────────────
+
+async function handleCheckContinuity() {
+  if (!currentStory) return;
+  const overlay = document.getElementById('continuity-overlay');
+  const body = document.getElementById('continuity-body');
+
+  overlay.classList.remove('hidden');
+  body.innerHTML = '<div class="continuity-loading"><span class="spinner"></span> Analyzing scenes for continuity issues...</div>';
+
+  try {
+    const result = await api.checkContinuity(currentStory.id);
+    if (!result.issues || result.issues.length === 0) {
+      body.innerHTML = `<div class="continuity-clean"><p>No continuity issues found across ${result.scene_count} scene${result.scene_count !== 1 ? 's' : ''}.</p></div>`;
+    } else {
+      let html = `<p class="continuity-summary">${result.issues.length} issue${result.issues.length !== 1 ? 's' : ''} found across ${result.scene_count} scene${result.scene_count !== 1 ? 's' : ''}</p>`;
+      html += '<div class="continuity-issues">';
+      for (const issue of result.issues) {
+        const sevClass = issue.severity === 'error' ? 'issue-error' : 'issue-warning';
+        const sevLabel = issue.severity === 'error' ? 'Error' : 'Warning';
+        html += `<div class="continuity-issue ${sevClass}">`;
+        html += `<span class="issue-badge">${escapeHtml(sevLabel)}</span>`;
+        if (issue.scene > 0) html += `<span class="issue-scene">Scene ${issue.scene}</span>`;
+        html += `<span class="issue-text">${escapeHtml(issue.issue)}</span>`;
+        html += '</div>';
+      }
+      html += '</div>';
+      body.innerHTML = html;
+    }
+  } catch (err) {
+    body.innerHTML = `<div class="continuity-error"><p>Continuity check failed: ${escapeHtml(err.message)}</p></div>`;
   }
 }
 

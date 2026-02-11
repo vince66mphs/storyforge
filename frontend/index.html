@@ -87,6 +87,9 @@
           <span id="settings-context-depth-value">3</span>
         </div>
       </div>
+      <div class="settings-group settings-divider">
+        <button id="settings-check-continuity" class="btn btn-secondary btn-small" style="width:100%">Check Continuity</button>
+      </div>
     </div>
 
     <div class="writing-layout">
@@ -171,6 +174,19 @@
       <div id="image-grid" class="image-grid"></div>
       <div class="image-grid-footer">
         <button id="image-grid-regen" class="btn btn-secondary btn-small">Regenerate All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Continuity Check Modal -->
+  <div id="continuity-overlay" class="continuity-overlay hidden">
+    <div class="continuity-modal">
+      <div class="continuity-header">
+        <h3>Continuity Check</h3>
+        <button id="continuity-close" class="lightbox-close">&times;</button>
+      </div>
+      <div id="continuity-body" class="continuity-body">
+        <p class="empty-state">Running analysis...</p>
       </div>
     </div>
   </div>

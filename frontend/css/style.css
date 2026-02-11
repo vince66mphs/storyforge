@@ -1091,6 +1091,144 @@ label {
   max-width: 60vw;
 }
 
+/* ── Continuity Check Modal ───────────────────────────────────────── */
+
+.continuity-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.continuity-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 90vw;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.continuity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.continuity-header h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.continuity-header .lightbox-close {
+  position: static;
+  font-size: 24px;
+  padding: 2px 6px;
+}
+
+.continuity-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.continuity-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+.continuity-clean {
+  color: var(--success);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.continuity-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.continuity-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.continuity-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.continuity-issue.issue-warning {
+  background: rgba(218, 170, 63, 0.08);
+  border-left: 3px solid var(--warning);
+}
+
+.continuity-issue.issue-error {
+  background: rgba(229, 83, 75, 0.08);
+  border-left: 3px solid var(--danger);
+}
+
+.issue-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.issue-warning .issue-badge {
+  color: var(--warning);
+  background: rgba(218, 170, 63, 0.15);
+}
+
+.issue-error .issue-badge {
+  color: var(--danger);
+  background: rgba(229, 83, 75, 0.15);
+}
+
+.issue-scene {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.issue-text {
+  color: var(--text-primary);
+}
+
+.continuity-error {
+  color: var(--danger);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.settings-divider {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
 /* ── Scrollbar ────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 6px; }

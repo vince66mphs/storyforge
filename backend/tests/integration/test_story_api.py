@@ -1,6 +1,8 @@
 """Integration tests for Story API endpoints — real DB."""
 
+import json
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -151,3 +153,74 @@ class TestExportMarkdown:
         fake_id = str(uuid.uuid4())
         resp = await client.get(f"/api/stories/{fake_id}/export/markdown")
         assert resp.status_code == 404
+
+
+class TestCheckContinuity:
+    async def test_nonexistent_story(self, client: AsyncClient):
+        fake_id = str(uuid.uuid4())
+        resp = await client.post(f"/api/stories/{fake_id}/check-continuity")
+        assert resp.status_code == 404
+
+    async def test_story_with_no_scenes(self, client: AsyncClient):
+        """Story with only root node returns empty issues."""
+        create_resp = await client.post(
+            "/api/stories", json={"title": "Empty Story"}
+        )
+        story_id = create_resp.json()["id"]
+
+        mock_issues = []
+        with patch.object(
+            __import__("app.api.stories", fromlist=["planner_svc"]).planner_svc,
+            "check_continuity",
+            new_callable=AsyncMock,
+            return_value=mock_issues,
+        ):
+            resp = await client.post(f"/api/stories/{story_id}/check-continuity")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["issues"] == []
+        assert data["scene_count"] == 0
+
+    async def test_continuity_check_returns_issues(self, client: AsyncClient, db_session: AsyncSession):
+        """Continuity endpoint returns issues from planner service."""
+        from app.models.node import Node
+
+        # Create story
+        create_resp = await client.post(
+            "/api/stories", json={"title": "Continuity Test"}
+        )
+        story_id = create_resp.json()["id"]
+        leaf_id = create_resp.json()["current_leaf_id"]
+
+        # Add a scene node
+        scene = Node(
+            story_id=uuid.UUID(story_id),
+            parent_id=uuid.UUID(leaf_id),
+            content="Jake drove the car through the rain.",
+            node_type="scene",
+        )
+        db_session.add(scene)
+        await db_session.flush()
+
+        # Update story's current leaf
+        from sqlalchemy import update
+        await db_session.execute(
+            update(Story).where(Story.id == uuid.UUID(story_id)).values(current_leaf_id=scene.id)
+        )
+        await db_session.commit()
+
+        mock_issues = [
+            {"scene": 1, "issue": "Jake was driving but then appeared as passenger", "severity": "error"},
+        ]
+        with patch.object(
+            __import__("app.api.stories", fromlist=["planner_svc"]).planner_svc,
+            "check_continuity",
+            new_callable=AsyncMock,
+            return_value=mock_issues,
+        ):
+            resp = await client.post(f"/api/stories/{story_id}/check-continuity")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["scene_count"] == 1
+        assert len(data["issues"]) == 1
+        assert data["issues"][0]["severity"] == "error"

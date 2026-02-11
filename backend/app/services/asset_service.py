@@ -265,7 +265,7 @@ class AssetService:
     ) -> str:
         """Generate a description for an entity using its reference image via vision model.
 
-        Uses gemma2:9b vision capabilities to analyze the entity's reference image
+        Uses the configured vision model to analyze the entity's reference image
         and produce a detailed description.
 
         Args:
@@ -291,7 +291,6 @@ class AssetService:
         description = await self.ollama.generate_vision(
             prompt=prompt,
             image_path=image_path,
-            model="gemma2:9b",
         )
 
         # Update entity description

@@ -242,10 +242,9 @@ class TestDescribeEntityFromImage:
         assert entity.version == 2
         session.commit.assert_called_once()
         svc.ollama.generate_vision.assert_called_once()
-        # Verify vision was called with correct image path
+        # Verify vision was called with correct image path (model defaults from config)
         call_kwargs = svc.ollama.generate_vision.call_args
         assert "alice_ref.png" in call_kwargs.kwargs["image_path"]
-        assert call_kwargs.kwargs["model"] == "gemma2:9b"
 
     async def test_raises_value_error_when_no_image(self, svc):
         session = AsyncMock()

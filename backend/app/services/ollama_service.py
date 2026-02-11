@@ -144,12 +144,13 @@ class OllamaService:
             prompt: The user prompt describing what to analyze.
             image_path: Absolute path to the image file.
             system: Optional system prompt.
-            model: Model name (must be vision-capable, e.g. gemma2:9b).
+            model: Model name (must be vision-capable).
 
         Returns:
             The generated text.
         """
-        model = model or "gemma2:9b"
+        settings = get_settings()
+        model = model or settings.vision_model
         messages = []
         if system:
             messages.append({"role": "system", "content": system})

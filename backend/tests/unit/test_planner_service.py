@@ -141,3 +141,80 @@ class TestPlanBeat:
         prompt = svc.ollama.generate.call_args.kwargs["prompt"]
         assert "Bob" in prompt
         assert "knight" in prompt
+
+
+class TestCheckContinuity:
+    async def test_returns_parsed_issues(self, svc):
+        svc.ollama.generate.return_value = json.dumps([
+            {"scene": 2, "issue": "Jake was driving in scene 1 but passenger in scene 2", "severity": "error"},
+            {"scene": 3, "issue": "Sun sets twice", "severity": "warning"},
+        ])
+        scenes = [
+            {"number": 1, "content": "Jake drove down the highway."},
+            {"number": 2, "content": "Jake sat in the passenger seat."},
+            {"number": 3, "content": "The sun set again."},
+        ]
+        issues = await svc.check_continuity(scenes, [])
+        assert len(issues) == 2
+        assert issues[0]["scene"] == 2
+        assert issues[0]["severity"] == "error"
+        assert issues[1]["scene"] == 3
+
+    async def test_returns_empty_list_when_clean(self, svc):
+        svc.ollama.generate.return_value = "[]"
+        scenes = [{"number": 1, "content": "A normal scene."}]
+        issues = await svc.check_continuity(scenes, [])
+        assert issues == []
+
+    async def test_handles_markdown_fences(self, svc):
+        svc.ollama.generate.return_value = '```json\n[{"scene": 1, "issue": "test", "severity": "warning"}]\n```'
+        scenes = [{"number": 1, "content": "Test."}]
+        issues = await svc.check_continuity(scenes, [])
+        assert len(issues) == 1
+        assert issues[0]["issue"] == "test"
+
+    async def test_fallback_on_invalid_json(self, svc):
+        svc.ollama.generate.return_value = "This is not JSON at all"
+        scenes = [{"number": 1, "content": "Test."}]
+        issues = await svc.check_continuity(scenes, [])
+        assert len(issues) == 1
+        assert "Failed to parse" in issues[0]["issue"]
+
+    async def test_fallback_on_ollama_failure(self, svc):
+        svc.ollama.generate.side_effect = RuntimeError("connection lost")
+        scenes = [{"number": 1, "content": "Test."}]
+        issues = await svc.check_continuity(scenes, [])
+        assert len(issues) == 1
+        assert "failed" in issues[0]["issue"].lower()
+
+    async def test_includes_world_bible_in_prompt(self, svc):
+        svc.ollama.generate.return_value = "[]"
+        scenes = [{"number": 1, "content": "Jake walked."}]
+        wb = [{"name": "Jake", "type": "character", "description": "A tall man"}]
+        await svc.check_continuity(scenes, wb)
+        prompt = svc.ollama.generate.call_args.kwargs["prompt"]
+        assert "Jake" in prompt
+        assert "tall man" in prompt
+
+
+class TestParseContinuity:
+    def test_valid_array(self, svc):
+        raw = json.dumps([{"scene": 1, "issue": "test", "severity": "warning"}])
+        result = svc._parse_continuity(raw)
+        assert len(result) == 1
+
+    def test_missing_severity_defaults_to_warning(self, svc):
+        raw = json.dumps([{"scene": 1, "issue": "test"}])
+        result = svc._parse_continuity(raw)
+        assert result[0]["severity"] == "warning"
+
+    def test_non_list_returns_error(self, svc):
+        raw = json.dumps({"scene": 1, "issue": "test"})
+        result = svc._parse_continuity(raw)
+        assert len(result) == 1
+        assert "Unexpected" in result[0]["issue"]
+
+    def test_extracts_array_from_text(self, svc):
+        raw = 'Here are the issues: [{"scene": 1, "issue": "test"}] Done!'
+        result = svc._parse_continuity(raw)
+        assert len(result) == 1

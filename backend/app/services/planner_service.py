@@ -193,3 +193,98 @@ class PlannerService:
         beat.setdefault("continuity_warnings", [])
 
         return beat
+
+    async def check_continuity(
+        self,
+        scenes: list[dict],
+        world_bible: list[dict],
+    ) -> list[dict]:
+        """Analyze scenes for continuity issues without generating new content.
+
+        Args:
+            scenes: List of dicts with "number" and "content" keys.
+            world_bible: List of dicts with "name", "type", "description" keys.
+
+        Returns:
+            List of issue dicts with "scene", "issue", "severity" keys.
+        """
+        scene_text = "\n\n".join(
+            f"--- Scene {s['number']} ---\n{s['content']}" for s in scenes
+        )
+
+        entity_text = ""
+        if world_bible:
+            entity_text = "\nWorld Bible entities:\n" + "\n".join(
+                f"- {e['name']} ({e['type']}): {e['description']}"
+                for e in world_bible
+            )
+
+        system = (
+            "You are a continuity checker for interactive fiction. "
+            "Analyze the provided scenes and flag inconsistencies. "
+            "Check for:\n"
+            "- Physical inconsistencies (who is driving, position changes without movement)\n"
+            "- Timeline/time-of-day errors (sun setting twice, morning after night without sleep)\n"
+            "- Character knowledge contradictions (knowing something they shouldn't)\n"
+            "- Unresolved plot threads or disappearing characters\n"
+            "- World bible mismatches (descriptions contradicting established entities)\n\n"
+            "Return ONLY a JSON array of objects. Each object must have:\n"
+            '  "scene": <scene number (int)>,\n'
+            '  "issue": "<description of the problem>",\n'
+            '  "severity": "warning" or "error"\n\n'
+            "If no issues are found, return an empty array: []\n"
+            "Return ONLY valid JSON, no markdown fences or explanation."
+        )
+
+        prompt = f"Scenes to analyze:\n{scene_text}{entity_text}\n\nCheck for continuity issues:"
+
+        logger.info("Checking continuity for %d scenes", len(scenes))
+
+        try:
+            raw = await self.ollama.generate(
+                prompt=prompt,
+                system=system,
+                model=self._model,
+                keep_alive=self._keep_alive,
+            )
+            issues = self._parse_continuity(raw)
+        except Exception as e:
+            logger.warning("Continuity check failed: %s", e)
+            issues = [{"scene": 0, "issue": f"Continuity check failed: {e}", "severity": "error"}]
+
+        logger.info("Continuity check found %d issues", len(issues))
+        return issues
+
+    def _parse_continuity(self, raw: str) -> list[dict]:
+        """Parse JSON array from continuity check output."""
+        text = raw.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            text = "\n".join(lines).strip()
+
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            # Try to find JSON array in the response
+            start = text.find("[")
+            end = text.rfind("]") + 1
+            if start >= 0 and end > start:
+                try:
+                    result = json.loads(text[start:end])
+                except json.JSONDecodeError:
+                    return [{"scene": 0, "issue": "Failed to parse continuity response", "severity": "error"}]
+            else:
+                return [{"scene": 0, "issue": "Failed to parse continuity response", "severity": "error"}]
+
+        if not isinstance(result, list):
+            return [{"scene": 0, "issue": "Unexpected response format", "severity": "error"}]
+
+        # Validate each issue
+        valid = []
+        for item in result:
+            if isinstance(item, dict) and "scene" in item and "issue" in item:
+                item.setdefault("severity", "warning")
+                valid.append(item)
+
+        return valid

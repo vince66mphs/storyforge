@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     writer_model_unrestricted: str = "dolphin-mistral:7b"
     writer_model_safe: str = "dolphin-mistral:7b"
 
+    # Vision model (must support image input)
+    vision_model: str = "llama3.2-vision:11b"
+
     # MoA (Mixture of Agents) — Planner/Writer split
     planner_model: str = "phi4:latest"
     moa_enabled: bool = True

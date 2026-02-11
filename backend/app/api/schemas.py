@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.services.text_utils import clean_model_output
 
 
 # ── Story ──────────────────────────────────────────────────────────────
@@ -68,6 +70,13 @@ class NodeResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("content", mode="before")
+    @classmethod
+    def clean_content(cls, v):
+        if v:
+            return clean_model_output(v)
+        return v
+
 
 # ── Entity ─────────────────────────────────────────────────────────────
 
@@ -106,3 +115,16 @@ class ImageSelectRequest(BaseModel):
 
 class DetectEntitiesRequest(BaseModel):
     text: str = Field(..., min_length=1)
+
+
+# ── Continuity Check ──────────────────────────────────────────────────
+
+class ContinuityIssue(BaseModel):
+    scene: int
+    issue: str
+    severity: str = "warning"
+
+
+class ContinuityCheckResponse(BaseModel):
+    issues: list[ContinuityIssue]
+    scene_count: int

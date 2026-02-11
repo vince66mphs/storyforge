@@ -169,6 +169,12 @@ export async function uploadEntityImage(entityId, file) {
   return res.json();
 }
 
+// ── Continuity ────────────────────────────────────────────────────────
+
+export function checkContinuity(storyId) {
+  return request('POST', `/api/stories/${storyId}/check-continuity`);
+}
+
 // ── Export ────────────────────────────────────────────────────────────
 
 export function exportMarkdownUrl(storyId) {

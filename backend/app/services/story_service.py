@@ -13,8 +13,8 @@ from app.services.context_service import ContextService
 from app.services.model_manager import ModelManager
 from app.services.ollama_service import OllamaService
 from app.services.planner_service import PlannerService
+from app.services.text_utils import clean_model_output as _clean_output
 from app.services.writer_service import WriterService
-_clean_output = WriterService._clean_output
 
 logger = logging.getLogger(__name__)
 

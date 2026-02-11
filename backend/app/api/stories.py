@@ -6,13 +6,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.schemas import StoryCreate, StoryUpdate, StoryResponse, NodeResponse
+from app.api.schemas import (
+    ContinuityCheckResponse,
+    NodeResponse,
+    StoryCreate,
+    StoryResponse,
+    StoryUpdate,
+)
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
 from app.models.world_bible import WorldBibleEntity
+from app.services.planner_service import PlannerService
+from app.services.text_utils import clean_model_output
 
 router = APIRouter(prefix="/api/stories", tags=["stories"])
+
+planner_svc = PlannerService()
 
 
 @router.post("", response_model=StoryResponse, status_code=201)
@@ -177,7 +187,7 @@ async def export_story_markdown(
             continue
         scene_num += 1
         lines.append(f"### Scene {scene_num}\n")
-        lines.append(f"{node.content}\n")
+        lines.append(f"{clean_model_output(node.content)}\n")
         lines.append("---\n")
 
     content = "\n".join(lines)
@@ -189,3 +199,56 @@ async def export_story_markdown(
         media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/{story_id}/check-continuity", response_model=ContinuityCheckResponse)
+async def check_continuity(
+    story_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    """Analyze story scenes for continuity issues."""
+    result = await session.execute(select(Story).where(Story.id == story_id))
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.current_leaf_id is None:
+        raise HTTPException(status_code=400, detail="Story has no content to check")
+
+    # Walk from current leaf to root
+    path_nodes: list[Node] = []
+    current_id = story.current_leaf_id
+    while current_id is not None:
+        result = await session.execute(select(Node).where(Node.id == current_id))
+        node = result.scalar_one_or_none()
+        if node is None:
+            break
+        path_nodes.append(node)
+        current_id = node.parent_id
+    path_nodes.reverse()
+
+    # Build scenes list (skip root)
+    scenes = []
+    scene_num = 0
+    for node in path_nodes:
+        if node.node_type == "root":
+            continue
+        scene_num += 1
+        scenes.append({"number": scene_num, "content": node.content})
+
+    if not scenes:
+        return ContinuityCheckResponse(issues=[], scene_count=0)
+
+    # Load world bible entities
+    result = await session.execute(
+        select(WorldBibleEntity)
+        .where(WorldBibleEntity.story_id == story_id)
+    )
+    entities = list(result.scalars().all())
+    wb = [
+        {"name": e.name, "type": e.entity_type, "description": e.description}
+        for e in entities
+    ]
+
+    issues = await planner_svc.check_continuity(scenes, wb)
+    return ContinuityCheckResponse(issues=issues, scene_count=len(scenes))

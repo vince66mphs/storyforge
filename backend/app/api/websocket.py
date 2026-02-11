@@ -19,6 +19,7 @@ from app.models.node import Node
 from app.models.story import Story
 from app.services.illustration_service import IllustrationService
 from app.services.story_service import StoryGenerationService
+from app.services.text_utils import clean_model_output
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def _node_to_dict(node: Node) -> dict:
         "id": str(node.id),
         "story_id": str(node.story_id),
         "parent_id": str(node.parent_id) if node.parent_id else None,
-        "content": node.content,
+        "content": clean_model_output(node.content) if node.content else node.content,
         "summary": node.summary,
         "node_type": node.node_type,
         "created_at": node.created_at.isoformat(),

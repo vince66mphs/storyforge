@@ -504,14 +504,46 @@ Addressed meta-commentary leaks, continuity errors, and missing output sanitizat
 - **Fix:** Read-time filtering in `nodes.py` — `get_node()` and `get_node_path()` fetch current world bible entity names and filter `unknown_characters` and `continuity_warnings` from the response before serving
 - **Design choice:** Filtering at read time preserves the historical metadata (audit trail of what the planner actually produced) and works regardless of how entities are added
 
+### Vision Model Fix + Read-Time Cleanup + Continuity Check — COMPLETE
+
+**Vision model fix:**
+- `gemma2:9b` is NOT vision-capable (hallucinates from entity names, doesn't analyze images)
+- Switched to `llama3.2-vision:11b` as default vision model
+- Added configurable `VISION_MODEL` setting in config.py / .env / .env.example
+- `OllamaService.generate_vision()` and `AssetService.describe_entity_from_image()` now use config setting instead of hardcoded model
+
+**Read-time content cleanup:**
+- Extracted `_clean_output()` from WriterService into standalone `app/services/text_utils.py` → `clean_model_output()`
+- Added `@field_validator('content')` on `NodeResponse` schema — cleans artifacts on serialization
+- WebSocket `_node_to_dict()` cleans content via `clean_model_output()`
+- Markdown export cleans content before appending
+- Pre-hardening scenes (1-3) with leaked `[WORLD BIBLE]` blocks, `Scene plan:` dumps, and sign-offs now display clean without mutating stored data
+
+**Continuity check feature:**
+- New `PlannerService.check_continuity()` method — uses phi4 to analyze all scenes for physical inconsistencies, timeline errors, character contradictions, unresolved plot threads, world bible mismatches
+- Returns structured JSON array of issues with scene number, description, and severity (warning/error)
+- JSON parsing with fallback strategy (same as `plan_beat()`)
+- New endpoint: `POST /api/stories/{id}/check-continuity` — loads scene path + world bible, returns `{issues: [...], scene_count: N}`
+- New schemas: `ContinuityIssue`, `ContinuityCheckResponse`
+- Frontend: "Check Continuity" button in settings panel, modal overlay with loading state, issue display with severity badges and scene numbers
+- `api.checkContinuity(storyId)` in api.js
+
+**Tests:** 232 total (16 new), all passing in ~3.7s
+- `test_text_utils.py`: 17 tests for `clean_model_output()` (moved from test_writer_service)
+- `test_schemas.py`: 2 new tests for NodeResponse content cleaning
+- `test_planner_service.py`: 10 new tests for `check_continuity()` and `_parse_continuity()`
+- `test_story_api.py`: 3 new integration tests for continuity endpoint
+
 ### Pending Manual Testing
 - [ ] 4-image generation grid (click "Generate Image" in entity detail → 2x2 grid fills progressively)
 - [ ] Lightbox popup (click entity thumbnail → full-size image view)
 - [ ] Entity detail panel (click entity name/row → edit modal)
 - [ ] Manual entity creation form (+ Add button)
-- [ ] Vision-based description generation (Describe from Image button)
+- [ ] Vision-based description generation (Describe from Image button with llama3.2-vision:11b)
 - [ ] Image upload (click "Upload Image" in entity detail → select file → image appears)
 - [ ] Add from warning (generate scene with new character → gold warning with "Add [Name]" button → click → entity appears in World Bible panel)
+- [ ] Read-time cleanup verification (load story with pre-hardening scenes → no artifacts visible)
+- [ ] Continuity check (open Settings → click "Check Continuity" → issues display)
 
 ## Blockers
 
@@ -532,7 +564,7 @@ None currently.
 - Stage 3 MoA: Two-pass pipeline (PlannerService → WriterService) under ModelManager semaphore; beat stored in metadata_ JSONB
 - HNSW indexes use vector_cosine_ops with m=16, ef_construction=64
 - Embedding dimension: 768 (matches nomic-embed-text model)
-- Ollama models: dolphin-mistral:7b (creative writer), phi4:latest (planner), gemma2:9b (visualizer), nomic-embed-text (embeddings)
+- Ollama models: dolphin-mistral:7b (creative writer), phi4:latest (planner), llama3.2-vision:11b (vision), nomic-embed-text (embeddings)
 - ComfyUI 0.7.0 with RTX 3090 (24GB VRAM), PyTorch 2.6.0+cu124
 - Available checkpoints: CyberRealisticPony, blendermix, flux1-kontext, mistoonAnime, realism-sdxl, realvisxlV40 (default), sd3.5_large
 - Default pipeline: SDXL Lightning — euler/sgm_uniform, 6 steps, cfg 1.8 (fast generation)

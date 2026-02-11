@@ -21,6 +21,8 @@ from app.api.schemas import (
     EntityResponse,
     DetectEntitiesRequest,
     ImageSelectRequest,
+    ContinuityIssue,
+    ContinuityCheckResponse,
 )
 
 
@@ -221,3 +223,32 @@ class TestNodeResponseUnknownCharacters:
         )
         assert len(n.unknown_characters) == 1
         assert n.unknown_characters[0].name == "Bob"
+
+    def test_content_cleaned_on_serialization(self):
+        """NodeResponse should strip model artifacts from content."""
+        dirty = "The car drove away.\n\nLet me know if you want more."
+        n = NodeResponse(
+            id=uuid.uuid4(),
+            story_id=uuid.uuid4(),
+            parent_id=None,
+            content=dirty,
+            summary=None,
+            node_type="scene",
+            created_at=datetime.now(timezone.utc),
+        )
+        assert n.content == "The car drove away."
+        assert "Let me know" not in n.content
+
+    def test_content_with_world_bible_cleaned(self):
+        """NodeResponse should strip [WORLD BIBLE] blocks from content."""
+        dirty = "Rain hammered.\n\n[WORLD BIBLE]\nCharacter: Jake"
+        n = NodeResponse(
+            id=uuid.uuid4(),
+            story_id=uuid.uuid4(),
+            parent_id=None,
+            content=dirty,
+            summary=None,
+            node_type="scene",
+            created_at=datetime.now(timezone.utc),
+        )
+        assert n.content == "Rain hammered."
