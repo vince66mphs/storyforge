@@ -534,16 +534,16 @@ Addressed meta-commentary leaks, continuity errors, and missing output sanitizat
 - `test_planner_service.py`: 10 new tests for `check_continuity()` and `_parse_continuity()`
 - `test_story_api.py`: 3 new integration tests for continuity endpoint
 
-### Pending Manual Testing
-- [ ] 4-image generation grid (click "Generate Image" in entity detail → 2x2 grid fills progressively)
-- [ ] Lightbox popup (click entity thumbnail → full-size image view)
-- [ ] Entity detail panel (click entity name/row → edit modal)
-- [ ] Manual entity creation form (+ Add button)
-- [ ] Vision-based description generation (Describe from Image button with llama3.2-vision:11b)
-- [ ] Image upload (click "Upload Image" in entity detail → select file → image appears)
-- [ ] Add from warning (generate scene with new character → gold warning with "Add [Name]" button → click → entity appears in World Bible panel)
-- [ ] Read-time cleanup verification (load story with pre-hardening scenes → no artifacts visible)
-- [ ] Continuity check (open Settings → click "Check Continuity" → issues display)
+### Manual Testing — ALL PASSED (2026-02-11)
+- [x] Read-time cleanup verification (scenes 1-3 had artifacts in DB, served clean via API)
+- [x] Entity detail panel (click entity row → edit modal with image, fields, actions)
+- [x] Lightbox popup (click entity thumbnail → full-size image view, close via X/backdrop/Escape)
+- [x] 4-image generation grid (Generate Image → 2x2 grid fills progressively, click to select)
+- [x] Manual entity creation form (+ Add → inline form → entity appears in list)
+- [x] Vision-based description (Describe from Image with llama3.2-vision:11b — real image analysis, not hallucination)
+- [x] Image upload (Upload Image → select file → image replaces reference)
+- [x] Add from warning (new character in scene → gold warning with "Add [Name]" → entity created)
+- [x] Continuity check (Settings → Check Continuity → modal shows phi4 analysis with issues)
 
 ## Blockers
 
