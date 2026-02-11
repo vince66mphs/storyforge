@@ -14,6 +14,7 @@ from app.api.schemas import (
 from app.core.database import get_session
 from app.models.node import Node
 from app.models.story import Story
+from app.models.world_bible import WorldBibleEntity
 from app.services.illustration_service import IllustrationService
 from app.services.ollama_service import OllamaService
 from app.services.story_service import StoryGenerationService
@@ -25,6 +26,35 @@ router = APIRouter(tags=["nodes"])
 story_svc = StoryGenerationService()
 ollama_svc = OllamaService()
 illustration_svc = IllustrationService()
+
+
+async def _get_known_entity_names(
+    session: AsyncSession, story_id: uuid.UUID
+) -> set[str]:
+    """Fetch lowercase names of all world bible entities for a story."""
+    result = await session.execute(
+        select(WorldBibleEntity.name).where(WorldBibleEntity.story_id == story_id)
+    )
+    return {name.lower() for name in result.scalars().all()}
+
+
+def _filter_node_response(node: Node, known_names: set[str]) -> NodeResponse:
+    """Serialize a Node to NodeResponse, filtering out stale unknown_characters."""
+    response = NodeResponse.model_validate(node, from_attributes=True)
+    if response.unknown_characters:
+        response.unknown_characters = [
+            uc for uc in response.unknown_characters
+            if uc.name.lower() not in known_names
+        ]
+    if response.continuity_warnings:
+        response.continuity_warnings = [
+            w for w in response.continuity_warnings
+            if not (
+                "unknown characters" in w.lower()
+                and any(name in w.lower() for name in known_names)
+            )
+        ]
+    return response
 
 
 @router.post(
@@ -92,7 +122,8 @@ async def get_node(
     node = result.scalar_one_or_none()
     if node is None:
         raise HTTPException(status_code=404, detail="Node not found")
-    return node
+    known = await _get_known_entity_names(session, node.story_id)
+    return _filter_node_response(node, known)
 
 
 @router.get("/api/nodes/{node_id}/path", response_model=list[NodeResponse])
@@ -113,7 +144,12 @@ async def get_node_path(
         current_id = node.parent_id
 
     path.reverse()
-    return path
+
+    if not path:
+        return []
+
+    known = await _get_known_entity_names(session, path[0].story_id)
+    return [_filter_node_response(n, known) for n in path]
 
 
 @router.patch("/api/nodes/{node_id}", response_model=NodeResponse)
