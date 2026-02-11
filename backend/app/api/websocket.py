@@ -40,6 +40,7 @@ def _node_to_dict(node: Node) -> dict:
         "created_at": node.created_at.isoformat(),
         "beat": node.beat,
         "continuity_warnings": node.continuity_warnings,
+        "unknown_characters": node.unknown_characters,
         "illustration_path": node.illustration_path,
     }
     return d

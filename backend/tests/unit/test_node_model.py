@@ -49,6 +49,25 @@ class TestNodeProperties:
         node = self._make_node(metadata_=None)
         assert node.continuity_warnings == []
 
+    def test_unknown_characters_present(self):
+        chars = [{"name": "Bob", "entity_type": "character", "description": "A stranger"}]
+        node = self._make_node(
+            metadata_={"beat": {"unknown_characters": chars}}
+        )
+        assert node.unknown_characters == chars
+
+    def test_unknown_characters_no_beat(self):
+        node = self._make_node(metadata_={"other": "data"})
+        assert node.unknown_characters == []
+
+    def test_unknown_characters_beat_without_key(self):
+        node = self._make_node(metadata_={"beat": {"setting": "forest"}})
+        assert node.unknown_characters == []
+
+    def test_unknown_characters_none_metadata(self):
+        node = self._make_node(metadata_=None)
+        assert node.unknown_characters == []
+
     def test_repr(self):
         node = self._make_node()
         r = repr(node)

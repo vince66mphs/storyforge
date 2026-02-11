@@ -26,7 +26,16 @@ PLANNER_SYSTEM_PROMPT = (
     "}\n\n"
     "Keep events to 2-4 items. Be specific and actionable. "
     "If you spot characters or details that contradict earlier scenes, "
-    "add warnings to continuity_warnings."
+    "add warnings to continuity_warnings.\n\n"
+    "PHYSICAL CONTINUITY — check these before planning:\n"
+    "- Who is driving/navigating? Do not swap roles unless the plan includes an event showing the switch.\n"
+    "- Time of day must advance, not repeat. If the sun already set, it stays dark.\n"
+    "- Track character positions (inside/outside a vehicle, seated/standing, room location). "
+    "Do not teleport characters between positions without an event covering the movement.\n"
+    "- Communication mode: text messages are read on a screen, not spoken aloud. "
+    "Phone calls are heard through a speaker or earpiece. Note the mode in continuity_notes.\n"
+    "- If the prior scene established a specific physical detail (injury, clothing, weather), "
+    "carry it forward in continuity_notes."
 )
 
 FALLBACK_BEAT = {
@@ -106,6 +115,17 @@ class PlannerService:
                 warnings.append(f"Unknown characters (not in world bible): {', '.join(unknown)}")
                 beat["continuity_warnings"] = warnings
 
+                # Build structured data for one-click "Add to World Bible"
+                beat["unknown_characters"] = [
+                    {
+                        "name": name,
+                        "entity_type": "character",
+                        "description": self._extract_character_context(beat, name),
+                        "base_prompt": self._build_character_prompt(beat, name),
+                    }
+                    for name in unknown
+                ]
+
         logger.info(
             "Beat planned: %d events, tone=%s, %d warnings",
             len(beat.get("key_events", [])),
@@ -113,6 +133,29 @@ class PlannerService:
             len(beat.get("continuity_warnings", [])),
         )
         return beat
+
+    @staticmethod
+    def _extract_character_context(beat: dict, name: str) -> str:
+        """Pull a short description from beat events/setting for an unknown character."""
+        parts = []
+        for event in beat.get("key_events", []):
+            if name.lower() in event.lower():
+                parts.append(event)
+        if not parts:
+            parts.append(f"Character appearing in: {beat.get('setting', 'unknown setting')}")
+        return "; ".join(parts)
+
+    @staticmethod
+    def _build_character_prompt(beat: dict, name: str) -> str:
+        """Build a base image prompt for an unknown character."""
+        setting = beat.get("setting", "")
+        tone = beat.get("emotional_tone", "")
+        prompt_parts = [f"portrait of {name}"]
+        if setting:
+            prompt_parts.append(setting)
+        if tone:
+            prompt_parts.append(f"{tone} atmosphere")
+        return ", ".join(prompt_parts)
 
     def _parse_beat(self, raw: str) -> dict:
         """Parse JSON from planner output, handling markdown fences."""

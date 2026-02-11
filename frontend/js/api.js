@@ -107,12 +107,66 @@ export function listEntities(storyId) {
   return request('GET', `/api/stories/${storyId}/entities`);
 }
 
+export function createEntity(storyId, entityType, name, description, basePrompt) {
+  return request('POST', `/api/stories/${storyId}/entities`, {
+    entity_type: entityType,
+    name,
+    description,
+    base_prompt: basePrompt,
+  });
+}
+
 export function detectEntities(storyId, text) {
   return request('POST', `/api/stories/${storyId}/entities/detect`, { text });
 }
 
 export function generateEntityImage(entityId) {
   return request('POST', `/api/entities/${entityId}/image`);
+}
+
+export function selectEntityImage(entityId, filename, seed, rejectFilenames) {
+  return request('POST', `/api/entities/${entityId}/images/select`, {
+    filename,
+    seed,
+    reject_filenames: rejectFilenames,
+  });
+}
+
+export function generateEntityImagesUrl(entityId) {
+  return `/api/entities/${entityId}/images/generate`;
+}
+
+export function describeEntityFromImage(entityId) {
+  return request('POST', `/api/entities/${entityId}/describe`);
+}
+
+export function getEntity(entityId) {
+  return request('GET', `/api/entities/${entityId}`);
+}
+
+export function updateEntity(entityId, updates) {
+  return request('PATCH', `/api/entities/${entityId}`, updates);
+}
+
+export async function uploadEntityImage(entityId, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/entities/${entityId}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (e) {
+    throw new ApiError(0, 'Network error — server may be down', 'network_error');
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(res.status, err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 // ── Export ────────────────────────────────────────────────────────────

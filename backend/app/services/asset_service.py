@@ -1,10 +1,15 @@
 import json
 import logging
+import os
+import random
 import uuid
+from collections.abc import AsyncIterator
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.world_bible import WorldBibleEntity
 from app.services.comfyui_service import ComfyUIService
 from app.services.ollama_service import OllamaService
@@ -185,3 +190,123 @@ class AssetService:
 
         logger.info("Image saved for entity %s: %s", entity.name, image_filename)
         return image_filename
+
+    async def generate_entity_images(
+        self,
+        entity: WorldBibleEntity,
+        count: int = 4,
+    ) -> AsyncIterator[dict]:
+        """Generate multiple candidate images for an entity with different seeds.
+
+        Yields dicts as each image completes:
+            {"index": 0, "filename": "xxx.png", "seed": 12345}
+
+        Args:
+            entity: The entity to generate images for.
+            count: Number of candidate images to generate.
+        """
+        logger.info(
+            "Generating %d candidate images for entity=%s (%s)",
+            count, entity.name, entity.id,
+        )
+
+        for i in range(count):
+            seed = random.randint(0, 2**32 - 1)
+            image_filename = await self.comfyui.generate_image(
+                prompt=entity.base_prompt,
+                seed=seed,
+            )
+            logger.info("Candidate %d/%d for %s: %s (seed=%d)", i + 1, count, entity.name, image_filename, seed)
+            yield {"index": i, "filename": image_filename, "seed": seed}
+
+    async def select_entity_image(
+        self,
+        session: AsyncSession,
+        entity: WorldBibleEntity,
+        filename: str,
+        seed: int,
+        reject_filenames: list[str] | None = None,
+    ) -> None:
+        """Set the selected image as the entity's reference and clean up rejected ones.
+
+        Args:
+            session: Active database session.
+            entity: The entity to update.
+            filename: The selected image filename.
+            seed: The seed used to generate the selected image.
+            reject_filenames: Filenames of rejected candidates to delete.
+        """
+        entity.reference_image_path = filename
+        entity.image_seed = seed
+        await session.commit()
+        await session.refresh(entity)
+
+        # Clean up rejected images
+        if reject_filenames:
+            static_dir = Path(get_settings().static_dir) / "images"
+            for reject in reject_filenames:
+                path = static_dir / reject
+                try:
+                    if path.exists():
+                        os.remove(path)
+                        logger.info("Deleted rejected candidate: %s", reject)
+                except OSError as e:
+                    logger.warning("Failed to delete %s: %s", reject, e)
+
+        logger.info(
+            "Selected image for entity %s: %s (seed=%d)",
+            entity.name, filename, seed,
+        )
+
+    async def describe_entity_from_image(
+        self,
+        session: AsyncSession,
+        entity: WorldBibleEntity,
+    ) -> str:
+        """Generate a description for an entity using its reference image via vision model.
+
+        Uses gemma2:9b vision capabilities to analyze the entity's reference image
+        and produce a detailed description.
+
+        Args:
+            session: Active database session.
+            entity: The entity with a reference image.
+
+        Returns:
+            The generated description text.
+        """
+        if not entity.reference_image_path:
+            raise ValueError("Entity has no reference image")
+
+        image_path = str(Path(get_settings().static_dir) / "images" / entity.reference_image_path)
+
+        prompt = (
+            f"This image depicts a {entity.entity_type} named '{entity.name}' "
+            f"from an interactive fiction story. "
+            f"Provide a detailed physical description of what you see. "
+            f"Focus on appearance, distinguishing features, and visual details. "
+            f"Write 2-3 sentences."
+        )
+
+        description = await self.ollama.generate_vision(
+            prompt=prompt,
+            image_path=image_path,
+            model="gemma2:9b",
+        )
+
+        # Update entity description
+        entity.description = description.strip()
+        entity.version += 1
+
+        # Re-embed with new description
+        try:
+            embed_text = f"{entity.name} ({entity.entity_type}): {entity.description}"
+            entity.embedding = await self.ollama.create_embedding(embed_text)
+        except Exception:
+            pass  # Embedding failure shouldn't block
+
+        await session.commit()
+        await session.refresh(entity)
+
+        logger.info("Generated vision description for %s: %d chars", entity.name, len(description))
+        return description

@@ -187,7 +187,7 @@ function appendScene(node) {
 
   // Persistent continuity warnings
   if (node.continuity_warnings?.length) {
-    scene.appendChild(buildWarnings(node.continuity_warnings));
+    scene.appendChild(buildWarnings(node.continuity_warnings, node.unknown_characters || []));
   }
 
   scenesContainer.appendChild(scene);
@@ -304,7 +304,7 @@ function handleComplete(node) {
 
     // Persistent continuity warnings
     if (node.continuity_warnings?.length) {
-      activeSceneEl.appendChild(buildWarnings(node.continuity_warnings));
+      activeSceneEl.appendChild(buildWarnings(node.continuity_warnings, node.unknown_characters || []));
     }
 
     // Illustration loading placeholder if auto-illustrate is on
@@ -518,16 +518,69 @@ function buildBeatDetails(beat) {
   return details;
 }
 
-function buildWarnings(warnings) {
+function buildWarnings(warnings, unknownCharacters = []) {
   const container = document.createElement('div');
   container.className = 'scene-warnings';
+
+  // Index unknown characters by name for quick lookup
+  const charByName = {};
+  for (const c of unknownCharacters) {
+    charByName[c.name.toLowerCase()] = c;
+  }
+
   for (const w of warnings) {
     const item = document.createElement('div');
     item.className = 'scene-warning-item';
-    item.textContent = w;
+
+    const text = document.createElement('span');
+    text.className = 'warning-text';
+    text.textContent = w;
+    item.appendChild(text);
+
+    // If this is the "Unknown characters" warning, add action buttons
+    if (w.startsWith('Unknown characters') && unknownCharacters.length > 0) {
+      const actions = document.createElement('span');
+      actions.className = 'warning-actions';
+      for (const charData of unknownCharacters) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-warning-add';
+        btn.textContent = `Add ${charData.name}`;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleAddFromWarning(charData, btn);
+        });
+        actions.appendChild(btn);
+      }
+      item.appendChild(actions);
+    }
+
     container.appendChild(item);
   }
   return container;
+}
+
+async function handleAddFromWarning(charData, btn) {
+  if (!currentStory) return;
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  try {
+    await api.createEntity(
+      currentStory.id,
+      charData.entity_type || 'character',
+      charData.name,
+      charData.description || `Character: ${charData.name}`,
+      charData.base_prompt || `portrait of ${charData.name}`,
+    );
+    btn.textContent = 'Added';
+    btn.classList.add('btn-resolved');
+    showToast(`Added ${charData.name} to World Bible`, 'success');
+    document.dispatchEvent(new CustomEvent('entity-added', { detail: { name: charData.name } }));
+  } catch (err) {
+    showToast(`Failed to add ${charData.name}: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = `Add ${charData.name}`;
+  }
 }
 
 async function handleIllustrate(nodeId, sceneEl) {

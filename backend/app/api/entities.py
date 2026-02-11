@@ -1,14 +1,21 @@
+import json
 import logging
+import secrets
 import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
 
 from app.api.schemas import (
     EntityCreate,
     EntityUpdate,
     EntityResponse,
+    ImageSelectRequest,
     DetectEntitiesRequest,
 )
 from app.core.database import get_session
@@ -150,6 +157,131 @@ async def generate_entity_image(
         entity=entity,
         seed=entity.image_seed,  # Reuse seed if regenerating for consistency
     )
+    return entity
+
+
+@router.post("/api/entities/{entity_id}/images/generate")
+async def generate_entity_images(
+    entity_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate 4 candidate images for an entity, streaming results via SSE."""
+    result = await session.execute(
+        select(WorldBibleEntity).where(WorldBibleEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    async def event_stream():
+        try:
+            async for candidate in asset_svc.generate_entity_images(entity):
+                data = json.dumps(candidate)
+                yield f"data: {data}\n\n"
+            yield "data: {\"done\": true}\n\n"
+        except (ServiceUnavailableError, ServiceTimeoutError, GenerationError) as e:
+            error_data = json.dumps({"error": str(e), "error_type": type(e).__name__})
+            yield f"data: {error_data}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/api/entities/{entity_id}/images/select", response_model=EntityResponse)
+async def select_entity_image(
+    entity_id: uuid.UUID,
+    body: ImageSelectRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Select one candidate image as the entity's reference, delete the rest."""
+    result = await session.execute(
+        select(WorldBibleEntity).where(WorldBibleEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    await asset_svc.select_entity_image(
+        session=session,
+        entity=entity,
+        filename=body.filename,
+        seed=body.seed,
+        reject_filenames=body.reject_filenames,
+    )
+    return entity
+
+
+@router.post("/api/entities/{entity_id}/describe", response_model=EntityResponse)
+async def describe_entity_from_image(
+    entity_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate a description for an entity from its reference image using vision AI."""
+    result = await session.execute(
+        select(WorldBibleEntity).where(WorldBibleEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    if not entity.reference_image_path:
+        raise HTTPException(status_code=400, detail="Entity has no reference image")
+
+    await asset_svc.describe_entity_from_image(session=session, entity=entity)
+    return entity
+
+
+ALLOWED_IMAGE_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/api/entities/{entity_id}/image/upload", response_model=EntityResponse)
+async def upload_entity_image(
+    entity_id: uuid.UUID,
+    file: UploadFile,
+    session: AsyncSession = Depends(get_session),
+):
+    """Upload a reference image for an entity."""
+    result = await session.execute(
+        select(WorldBibleEntity).where(WorldBibleEntity.id == entity_id)
+    )
+    entity = result.scalar_one_or_none()
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    # Validate content type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type: {file.content_type}. Allowed: PNG, JPG, WebP",
+        )
+
+    # Read and validate size
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
+
+    # Save file
+    ext = ALLOWED_IMAGE_TYPES[file.content_type]
+    random_suffix = secrets.token_hex(4)
+    filename = f"upload_{entity_id}_{random_suffix}{ext}"
+    settings = get_settings()
+    image_dir = Path(settings.static_dir) / "images"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    (image_dir / filename).write_bytes(data)
+
+    # Update entity
+    entity.reference_image_path = filename
+    entity.image_seed = None
+    await session.commit()
+    await session.refresh(entity)
     return entity
 
 

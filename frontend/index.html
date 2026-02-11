@@ -96,7 +96,34 @@
           <h3>World Bible</h3>
           <div class="entity-actions">
             <button id="detect-entities-btn" class="btn btn-small">Detect Entities</button>
+            <button id="add-entity-btn" class="btn btn-small btn-secondary">+ Add</button>
           </div>
+          <form id="add-entity-form" class="add-entity-form hidden">
+            <div class="form-group">
+              <label for="entity-name-input">Name</label>
+              <input type="text" id="entity-name-input" placeholder="e.g. Elara" required>
+            </div>
+            <div class="form-group">
+              <label for="entity-type-select">Type</label>
+              <select id="entity-type-select">
+                <option value="character">Character</option>
+                <option value="location">Location</option>
+                <option value="prop">Prop</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="entity-desc-input">Description</label>
+              <textarea id="entity-desc-input" placeholder="Who/what is this?" rows="2" required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="entity-prompt-input">Image Prompt</label>
+              <textarea id="entity-prompt-input" placeholder="Visual description for image generation" rows="2" required></textarea>
+            </div>
+            <div class="add-entity-actions">
+              <button type="submit" id="add-entity-submit" class="btn btn-primary btn-small">Add</button>
+              <button type="button" id="add-entity-cancel" class="btn btn-ghost btn-small">Cancel</button>
+            </div>
+          </form>
           <div id="entity-list" class="entity-list">
             <p class="empty-state">No entities yet</p>
           </div>
@@ -127,6 +154,32 @@
         </div>
       </main>
     </div>
+  </div>
+
+  <!-- Entity Detail Panel -->
+  <div id="entity-detail-overlay" class="entity-detail-overlay hidden">
+    <div id="entity-detail-panel" class="entity-detail-panel"></div>
+  </div>
+
+  <!-- Image Grid Modal (4-image selection) -->
+  <div id="image-grid-overlay" class="image-grid-overlay hidden">
+    <div class="image-grid-modal">
+      <div class="image-grid-header">
+        <h3 id="image-grid-title">Select Image</h3>
+        <button id="image-grid-close" class="lightbox-close">&times;</button>
+      </div>
+      <div id="image-grid" class="image-grid"></div>
+      <div class="image-grid-footer">
+        <button id="image-grid-regen" class="btn btn-secondary btn-small">Regenerate All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox-overlay" class="lightbox-overlay hidden">
+    <button id="lightbox-close" class="lightbox-close">&times;</button>
+    <img id="lightbox-img" class="lightbox-img" alt="">
+    <div id="lightbox-caption" class="lightbox-caption"></div>
   </div>
 
   <script type="module" src="/app/js/app.js"></script>

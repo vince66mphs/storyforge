@@ -170,3 +170,42 @@ class TestCheckHealth:
             mock_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = mock_instance
             assert await svc.check_health() is False
+
+
+# ── generate_vision ──────────────────────────────────────────────────
+
+class TestGenerateVision:
+    async def test_successful_vision_generation(self, svc, mock_ollama_client):
+        mock_ollama_client.chat.return_value.message.content = (
+            "A tall woman with red hair wearing leather armor."
+        )
+        result = await svc.generate_vision(
+            prompt="Describe this character",
+            image_path="/tmp/test_image.png",
+            model="gemma2:9b",
+        )
+        assert result == "A tall woman with red hair wearing leather armor."
+        mock_ollama_client.chat.assert_called_once()
+        call_kwargs = mock_ollama_client.chat.call_args
+        assert call_kwargs.kwargs["model"] == "gemma2:9b"
+        messages = call_kwargs.kwargs["messages"]
+        assert messages[0]["role"] == "user"
+        assert messages[0]["images"] == ["/tmp/test_image.png"]
+
+    async def test_connect_error_raises_unavailable(self, svc, mock_ollama_client):
+        mock_ollama_client.chat.side_effect = httpx.ConnectError("refused")
+        with pytest.raises(ServiceUnavailableError):
+            await svc.generate_vision(
+                prompt="Describe",
+                image_path="/tmp/img.png",
+            )
+
+    async def test_model_not_found_error(self, svc, mock_ollama_client):
+        mock_ollama_client.chat.side_effect = ResponseError("model 'gemma2:9b' not found")
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            await svc.generate_vision(
+                prompt="Describe",
+                image_path="/tmp/img.png",
+                model="gemma2:9b",
+            )
+        assert exc_info.value.model_name == "gemma2:9b"

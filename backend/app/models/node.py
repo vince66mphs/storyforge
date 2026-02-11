@@ -80,5 +80,14 @@ class Node(Base):
             return self.metadata_.get("continuity_warnings", [])
         return []
 
+    @property
+    def unknown_characters(self) -> list[dict]:
+        """Extract unknown character data from the beat, if present."""
+        if self.metadata_:
+            beat = self.metadata_.get("beat")
+            if beat:
+                return beat.get("unknown_characters", [])
+        return []
+
     def __repr__(self) -> str:
         return f"<Node(id={self.id}, type='{self.node_type}', story_id={self.story_id})>"

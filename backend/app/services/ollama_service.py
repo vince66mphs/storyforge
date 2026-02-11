@@ -131,6 +131,52 @@ class OllamaService:
         except Exception as e:
             raise GenerationError(SERVICE_NAME, f"stream failed: {e}") from e
 
+    async def generate_vision(
+        self,
+        prompt: str,
+        image_path: str,
+        system: str = "",
+        model: str | None = None,
+    ) -> str:
+        """Generate text from an image using a vision-capable model.
+
+        Args:
+            prompt: The user prompt describing what to analyze.
+            image_path: Absolute path to the image file.
+            system: Optional system prompt.
+            model: Model name (must be vision-capable, e.g. gemma2:9b).
+
+        Returns:
+            The generated text.
+        """
+        model = model or "gemma2:9b"
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({
+            "role": "user",
+            "content": prompt,
+            "images": [image_path],
+        })
+
+        logger.info("Vision generate with model=%s, image=%s", model, image_path)
+        try:
+            response = await self.client.chat(model=model, messages=messages)
+        except httpx.ConnectError as e:
+            raise ServiceUnavailableError(SERVICE_NAME, str(e)) from e
+        except httpx.TimeoutException as e:
+            raise ServiceTimeoutError(SERVICE_NAME, timeout=0, detail=str(e)) from e
+        except ResponseError as e:
+            if "not found" in str(e).lower():
+                raise ModelNotFoundError(model, str(e)) from e
+            raise GenerationError(SERVICE_NAME, str(e)) from e
+        except Exception as e:
+            raise GenerationError(SERVICE_NAME, str(e)) from e
+
+        content = response.message.content
+        logger.info("Vision generated %d chars", len(content))
+        return content
+
     async def create_embedding(self, text: str) -> list[float]:
         """Create a 768-dimensional embedding vector.
 

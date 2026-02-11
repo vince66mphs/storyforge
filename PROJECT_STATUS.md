@@ -1,8 +1,8 @@
 # Project Status - StoryForge 2.0
 
-**Last Updated:** 2026-02-10
-**Current Phase:** Phase 2 - Intelligence & Consistency
-**Current Stage:** Stages 5.2 & 5.3 (UI Polish & CLI Improvements) — COMPLETE
+**Last Updated:** 2026-02-11
+**Current Phase:** Phase 3 - World Bible Enhancements
+**Current Stage:** World Bible Overhaul — COMPLETE
 
 ---
 
@@ -408,25 +408,32 @@ Potential next steps (not currently planned):
   - test_model_not_found_ws_error (WebSocket integration)
   - test_model_not_found_error_attributes, test_is_subclass, test_custom_detail
 
-## Phase 3: World Bible Enhancements (In Progress)
+## Phase 3: World Bible Enhancements
 
 Starting with improvements to the existing app before tackling new Phase 3 features (React rewrite, TTS, EPUB).
 
-### World Bible Overhaul — PLANNED (6 tasks)
+### World Bible Overhaul — IN PROGRESS (6 tasks, UI bug fixes pending)
 
-The current entity panel is minimal (auto-detect, tiny thumbnails, click-to-regenerate). Goal: full-featured World Bible with manual creation, image selection, and description management.
+The entity panel has been upgraded from minimal (auto-detect, tiny thumbnails, click-to-regenerate) to a full-featured World Bible with manual creation, multi-image selection, vision-based description, and detailed editing.
 
-**Backend tasks:**
-- [ ] **4-image generation endpoint** — Generate 4 images with different seeds for each entity; stream results as they complete; add select endpoint to pick winner; clean up unselected images
-- [ ] **Vision-based description generation** — New endpoint using gemma2:9b vision model to generate entity description from reference image; needs vision-capable Ollama generate method
+**Backend (3 new endpoints, 22 total):**
+- [x] **4-image generation endpoint** (`POST /api/entities/{id}/images/generate`) — SSE endpoint generating 4 images with different random seeds; streams each result as `{index, filename, seed}` events; sequential generation via ComfyUI
+- [x] **Image selection endpoint** (`POST /api/entities/{id}/images/select`) — Sets selected image as entity reference, deletes rejected candidate files from disk
+- [x] **Vision-based description** (`POST /api/entities/{id}/describe`) — Uses gemma2:9b vision model to analyze reference image and generate 2-3 sentence physical description; updates entity description, bumps version, re-embeds
+- [x] **OllamaService.generate_vision()** — New method supporting vision-capable models via `images` parameter in chat messages
 
-**Frontend tasks:**
-- [ ] **Image lightbox/popup** — Click entity thumbnail to view full-size image in modal overlay; reusable modal component
-- [ ] **Manual entity creation form** — "Add Entity" button + form with name, type (character/location/prop), description, base_prompt fields
-- [ ] **4-image selection grid** — Modal with 2x2 grid; images appear progressively as generated; click to select as reference; "Regenerate All" button
-- [ ] **Entity detail panel** — Expanded view with editable description/base_prompt, "Generate Image" button (triggers 4-image grid), "Generate Description from Image" button (vision model)
+**Frontend (4 new modules):**
+- [x] **Image lightbox** (`lightbox.js`) — Reusable modal for viewing full-size images; close via X, backdrop click, or Escape; thumbnail click in entity panel opens lightbox instead of regenerating
+- [x] **Manual entity creation form** — "Add" button in World Bible panel; inline form with name, type dropdown (character/location/prop), description, and image prompt fields
+- [x] **4-image selection grid** (`image-grid.js`) — Modal with 2x2 grid; images appear progressively via SSE fetch; click to select as reference; "Regenerate All" button; rejected images auto-deleted
+- [x] **Entity detail panel** (`entity-detail.js`) — Expanded modal view showing reference image (clickable lightbox), editable description & image prompt, "Generate Image" (opens 4-image grid), "Describe from Image" (vision model), save with version tracking
 
-**Implementation order:** Lightbox modal → Manual add form → 4-image backend → 4-image grid UI → Vision describe backend → Detail panel
+**API client additions** (`api.js`):
+- [x] `createEntity()`, `selectEntityImage()`, `describeEntityFromImage()`, `getEntity()`, `updateEntity()`, `generateEntityImagesUrl()`
+
+**Test coverage:** 186 tests total (17 new), all passing in ~3s
+- Unit: ImageSelectRequest schema, OllamaService.generate_vision (success + errors), AssetService (generate_entity_images, select_entity_image, describe_entity_from_image)
+- Integration: SSE image generation endpoint, image select endpoint, describe endpoint (success + 400 no image)
 
 ### Future Phase 3 Work (Not Yet Started)
 - Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B)
@@ -436,9 +443,70 @@ The current entity panel is minimal (auto-detect, tiny thumbnails, click-to-rege
 - PuLID advanced face consistency
 - LoRA training pipeline
 
+### Bug Fixes Applied (session 2026-02-11)
+- [x] Entity item click target — entire row now clickable (was only tiny text area), opens detail panel
+- [x] Thumbnail click — uses `stopPropagation` so lightbox opens without also triggering detail panel
+- [x] Escape key conflicts — single global handler in app.js closes topmost modal in z-index order
+- [x] Entity item hover state — visual feedback (background highlight + border)
+- [x] Lightbox image sizing — `min-width: 512px` for proper World Bible image display
+
+### Bug Fix: 4-Image Generation Not Completing — RESOLVED
+- **Root cause:** Server was running stale code (uvicorn started without `--reload` before new endpoints were added). The SSE endpoint route was never registered in the running process.
+- **Fix:** Restarted the server. All 4 images now generate and stream via SSE correctly (~3s per image).
+- **Also verified:** Vision describe endpoint works (gemma2:9b analyzes entity images)
+
+### Image Upload + "Add to World Bible" from Warnings — COMPLETE
+Two workflow improvements to entity management:
+
+**Feature 1: Image Upload**
+- [x] New endpoint `POST /api/entities/{id}/image/upload` — multipart/form-data, validates file type (PNG/JPG/WebP) and size (max 10MB), saves to `static/images/upload_{id}_{random}{ext}`, clears `image_seed`
+- [x] Frontend: "Upload Image" button in entity detail panel, hidden file input triggered on click, upload handler with loading state
+- [x] `api.uploadEntityImage()` in api.js using FormData + raw fetch
+- [x] 3 integration tests: upload PNG (verify `upload_` prefix + null seed), invalid type (GIF → 400), nonexistent entity (404)
+
+**Feature 2: "Add to World Bible" from Continuity Warnings**
+- [x] PlannerService enhanced: when unknown characters detected, builds `unknown_characters` structured data in beat with name, entity_type, description (extracted from beat events/setting), and base_prompt (portrait + setting + tone)
+- [x] `_extract_character_context()` and `_build_character_prompt()` helper methods
+- [x] `Node.unknown_characters` property reads from `metadata_.beat.unknown_characters`
+- [x] `UnknownCharacter` Pydantic model + `unknown_characters` field on `NodeResponse`
+- [x] WebSocket `_node_to_dict()` includes `unknown_characters`
+- [x] Frontend: `buildWarnings()` renders "Add [Name]" buttons on unknown character warnings
+- [x] Frontend: `handleAddFromWarning()` calls `api.createEntity()`, marks button as resolved, dispatches `entity-added` event
+- [x] Frontend: entity-panel.js listens for `entity-added` event to refresh entity list
+- [x] CSS: warning items use flex layout, `.warning-actions`, `.btn-warning-add`, `.btn-resolved` styles
+
+**Test coverage:** 199 tests total (13 new), all passing in ~3.5s
+- Unit: UnknownCharacter schema, NodeResponse with unknown_characters, Node.unknown_characters property (4 cases), PlannerService structured unknown_characters (2 cases)
+- Integration: upload image, upload invalid type, upload nonexistent entity
+
+### Story Generation Quality Hardening — COMPLETE
+Addressed meta-commentary leaks, continuity errors, and missing output sanitization in writer pipeline.
+
+**Writer prompts hardened** (`writer_service.py`):
+- Both WRITER_SYSTEM_UNRESTRICTED and WRITER_SYSTEM_SAFE now include strict rules: no meta-commentary/sign-offs, no [WORLD BIBLE] or Scene plan: markers, no repeated opening descriptions, text messages described as screen text, physical/spatial consistency, natural time-of-day progression
+
+**Output post-processing** (`writer_service.py`):
+- New `_clean_output()` static method strips leaked model artifacts (trailing meta-commentary, [WORLD BIBLE] blocks, Scene plan: dumps, sign-offs like "Let me know...", "I'll provide...", "Would you like...")
+- Distinguishes legitimate horizontal rules (--- followed by prose) from cutoff markers (--- followed by meta-commentary or nothing)
+- Applied in `write_scene()` return and in `story_service.py` before embedding/storage for both MoA and single-model paths (including streaming)
+
+**Planner continuity checks** (`planner_service.py`):
+- PLANNER_SYSTEM_PROMPT enhanced with physical continuity instructions: track driver/navigator roles, time-of-day progression, character positions, communication mode (texts vs speech vs phone), carry forward physical details
+
+**Tests:** 212 total (14 new `_clean_output` tests), all passing in ~3.5s
+
+### Pending Manual Testing
+- [ ] 4-image generation grid (click "Generate Image" in entity detail → 2x2 grid fills progressively)
+- [ ] Lightbox popup (click entity thumbnail → full-size image view)
+- [ ] Entity detail panel (click entity name/row → edit modal)
+- [ ] Manual entity creation form (+ Add button)
+- [ ] Vision-based description generation (Describe from Image button)
+- [ ] Image upload (click "Upload Image" in entity detail → select file → image appears)
+- [ ] Add from warning (generate scene with new character → gold warning with "Add [Name]" button → click → entity appears in World Bible panel)
+
 ## Blockers
 
-None.
+None currently.
 
 ---
 

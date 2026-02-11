@@ -87,6 +87,45 @@ class TestPlanBeat:
         warnings = result["continuity_warnings"]
         assert any("UnknownGuy" in w for w in warnings)
 
+    async def test_unknown_characters_structured_data(self, svc):
+        svc.ollama.generate.return_value = json.dumps({
+            "setting": "dark tavern",
+            "characters_present": ["Alice", "Gareth", "Nyla"],
+            "key_events": ["Gareth challenges the group", "Nyla serves drinks"],
+            "emotional_tone": "tense",
+            "continuity_notes": "",
+            "continuity_warnings": [],
+        })
+
+        entities = [{"name": "Alice", "type": "character", "description": "Hero"}]
+        result = await svc.plan_beat("ctx", "Go to tavern", entities)
+
+        assert "unknown_characters" in result
+        uc = result["unknown_characters"]
+        assert len(uc) == 2
+        names = {c["name"] for c in uc}
+        assert names == {"Gareth", "Nyla"}
+        # Each should have structured fields
+        for c in uc:
+            assert c["entity_type"] == "character"
+            assert c["description"]  # non-empty
+            assert c["base_prompt"]  # non-empty
+            assert c["name"] in c["base_prompt"]
+
+    async def test_no_unknown_characters_when_all_known(self, svc):
+        svc.ollama.generate.return_value = json.dumps({
+            "setting": "castle",
+            "characters_present": ["Alice"],
+            "key_events": ["Alice enters"],
+            "emotional_tone": "calm",
+            "continuity_notes": "",
+            "continuity_warnings": [],
+        })
+
+        entities = [{"name": "Alice", "type": "character", "description": "Hero"}]
+        result = await svc.plan_beat("ctx", "Go home", entities)
+        assert "unknown_characters" not in result
+
     async def test_world_bible_included_in_prompt(self, svc):
         svc.ollama.generate.return_value = json.dumps({
             "setting": "town",

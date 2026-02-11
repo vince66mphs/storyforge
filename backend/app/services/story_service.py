@@ -14,6 +14,7 @@ from app.services.model_manager import ModelManager
 from app.services.ollama_service import OllamaService
 from app.services.planner_service import PlannerService
 from app.services.writer_service import WriterService
+_clean_output = WriterService._clean_output
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,9 @@ class StoryGenerationService:
                     prompt=prompt, system=system_prompt, model=writer_model,
                 )
 
+        # Clean leaked model artifacts before storage
+        content = _clean_output(content)
+
         # Generate embedding for the new content
         embedding = await self.ollama.create_embedding(content)
 
@@ -280,6 +284,10 @@ class StoryGenerationService:
                     yield chunk
 
                 content = "".join(chunks)
+
+        # Clean leaked model artifacts before storage (streamed text is already
+        # delivered to the client, but stored/embedded content gets cleaned)
+        content = _clean_output(content)
 
         # Embed and save
         embedding = await self.ollama.create_embedding(content)

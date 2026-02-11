@@ -6,6 +6,7 @@ narrative prose, respecting the content mode.
 """
 
 import logging
+import re
 from collections.abc import AsyncIterator
 
 from app.core.config import get_settings
@@ -22,7 +23,16 @@ WRITER_SYSTEM_UNRESTRICTED = (
     "End at a moment that invites the reader to choose what happens next. "
     "Do not break the fourth wall or mention that you are an AI. "
     "You have full creative freedom — explore any themes, emotions, or situations "
-    "the story demands without restriction."
+    "the story demands without restriction.\n\n"
+    "STRICT RULES — violating any of these ruins the story:\n"
+    "- Output ONLY narrative prose. No meta-commentary, sign-offs, or questions to the reader "
+    "(e.g. never write 'Let me know if you would like me to continue').\n"
+    "- Never include [WORLD BIBLE], Scene plan:, or any formatting markers in your output.\n"
+    "- Do not repeat the opening description at the end of the scene.\n"
+    "- Text messages between characters must be described as text on a screen, not spoken aloud.\n"
+    "- Maintain physical consistency: whoever is driving stays driving unless the scene "
+    "shows them switching. Track spatial positions (inside/outside, seated/standing).\n"
+    "- Time of day must progress naturally — the sun sets once, not repeatedly."
 )
 
 WRITER_SYSTEM_SAFE = (
@@ -34,7 +44,16 @@ WRITER_SYSTEM_SAFE = (
     "End at a moment that invites the reader to choose what happens next. "
     "Do not break the fourth wall or mention that you are an AI. "
     "Keep content appropriate for a general audience — avoid graphic violence, "
-    "explicit sexual content, and excessive profanity."
+    "explicit sexual content, and excessive profanity.\n\n"
+    "STRICT RULES — violating any of these ruins the story:\n"
+    "- Output ONLY narrative prose. No meta-commentary, sign-offs, or questions to the reader "
+    "(e.g. never write 'Let me know if you would like me to continue').\n"
+    "- Never include [WORLD BIBLE], Scene plan:, or any formatting markers in your output.\n"
+    "- Do not repeat the opening description at the end of the scene.\n"
+    "- Text messages between characters must be described as text on a screen, not spoken aloud.\n"
+    "- Maintain physical consistency: whoever is driving stays driving unless the scene "
+    "shows them switching. Track spatial positions (inside/outside, seated/standing).\n"
+    "- Time of day must progress naturally — the sun sets once, not repeatedly."
 )
 
 
@@ -49,6 +68,60 @@ class WriterService:
             "safe": settings.writer_model_safe,
         }
         self._keep_alive = settings.writer_keep_alive
+
+    # Patterns that indicate the prose has ended and model artifacts follow.
+    # Each pattern matches at the START of a line.
+    _CUTOFF_PATTERNS = re.compile(
+        r"^("
+        r"Let me know\b"
+        r"|I'll provide\b"
+        r"|Continue with\b"
+        r"|I hope you enjoy"
+        r"|If you would like"
+        r"|Would you like"
+        r"|Feel free to\b"
+        r"|\[WORLD BIBLE\]"
+        r"|Scene plan:"
+        r"|---\s*$"
+        r")",
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _clean_output(text: str) -> str:
+        """Strip leaked model artifacts from writer output.
+
+        Detects meta-commentary, sign-offs, [WORLD BIBLE] blocks, and
+        scene plan dumps that appear after the actual prose, and removes
+        everything from the first such marker onward.
+        """
+        # Split into lines and scan for cutoff markers
+        lines = text.split("\n")
+        cutoff_idx: int | None = None
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Skip blank lines — they might just be paragraph breaks
+            if not stripped:
+                continue
+            if WriterService._CUTOFF_PATTERNS.match(stripped):
+                # A lone "---" inside prose is legitimate (section break)
+                # Only treat it as cutoff if it's followed by a meta-commentary line
+                if stripped.startswith("---"):
+                    # Look ahead for meta-commentary after this separator
+                    remaining = "\n".join(lines[i + 1:]).strip()
+                    if not remaining or WriterService._CUTOFF_PATTERNS.match(remaining.split("\n")[0].strip()):
+                        cutoff_idx = i
+                        break
+                    # Legitimate horizontal rule inside prose — skip
+                    continue
+                cutoff_idx = i
+                break
+
+        if cutoff_idx is not None:
+            text = "\n".join(lines[:cutoff_idx])
+
+        return text.rstrip()
 
     def _get_model(self, content_mode: str) -> str:
         return self._writer_models.get(content_mode, self._writer_models["unrestricted"])
@@ -108,12 +181,13 @@ class WriterService:
 
         logger.info("Writing scene with model=%s, mode=%s", model, content_mode)
 
-        return await self.ollama.generate(
+        raw = await self.ollama.generate(
             prompt=prompt,
             system=system,
             model=model,
             keep_alive=self._keep_alive,
         )
+        return self._clean_output(raw)
 
     async def write_scene_stream(
         self,

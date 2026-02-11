@@ -15,10 +15,12 @@ from app.api.schemas import (
     BranchRequest,
     NodeUpdate,
     NodeResponse,
+    UnknownCharacter,
     EntityCreate,
     EntityUpdate,
     EntityResponse,
     DetectEntitiesRequest,
+    ImageSelectRequest,
 )
 
 
@@ -150,3 +152,72 @@ class TestModelNotFoundError:
     def test_custom_detail(self):
         err = ModelNotFoundError("foo", detail="custom message")
         assert "custom message" in str(err)
+
+
+# ── ImageSelectRequest ───────────────────────────────────────────────
+
+class TestImageSelectRequest:
+    def test_valid(self):
+        r = ImageSelectRequest(filename="alice_001.png", seed=12345)
+        assert r.filename == "alice_001.png"
+        assert r.seed == 12345
+        assert r.reject_filenames == []
+
+    def test_empty_filename_rejected(self):
+        with pytest.raises(ValidationError):
+            ImageSelectRequest(filename="", seed=42)
+
+    def test_with_reject_list(self):
+        r = ImageSelectRequest(
+            filename="selected.png",
+            seed=99,
+            reject_filenames=["reject1.png", "reject2.png", "reject3.png"],
+        )
+        assert len(r.reject_filenames) == 3
+        assert "reject2.png" in r.reject_filenames
+
+
+# ── UnknownCharacter ────────────────────────────────────────────────
+
+class TestUnknownCharacter:
+    def test_valid(self):
+        c = UnknownCharacter(name="Bob", description="A stranger", base_prompt="portrait of Bob")
+        assert c.name == "Bob"
+        assert c.entity_type == "character"
+
+    def test_defaults(self):
+        c = UnknownCharacter(name="Eve")
+        assert c.entity_type == "character"
+        assert c.description == ""
+        assert c.base_prompt == ""
+
+
+# ── NodeResponse with unknown_characters ─────────────────────────────
+
+class TestNodeResponseUnknownCharacters:
+    def test_empty_by_default(self):
+        n = NodeResponse(
+            id=uuid.uuid4(),
+            story_id=uuid.uuid4(),
+            parent_id=None,
+            content="Test",
+            summary=None,
+            node_type="scene",
+            created_at=datetime.now(timezone.utc),
+        )
+        assert n.unknown_characters == []
+
+    def test_with_unknown_characters(self):
+        chars = [{"name": "Bob", "entity_type": "character", "description": "A stranger", "base_prompt": "portrait"}]
+        n = NodeResponse(
+            id=uuid.uuid4(),
+            story_id=uuid.uuid4(),
+            parent_id=None,
+            content="Test",
+            summary=None,
+            node_type="scene",
+            created_at=datetime.now(timezone.utc),
+            unknown_characters=chars,
+        )
+        assert len(n.unknown_characters) == 1
+        assert n.unknown_characters[0].name == "Bob"

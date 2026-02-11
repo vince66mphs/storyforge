@@ -1,30 +1,44 @@
 /**
- * Entity panel: detect entities, list them, generate images.
+ * Entity panel: detect entities, list them, generate images, manual creation.
  */
 
 import * as api from './api.js';
 import { ApiError } from './api.js';
 import { showToast } from './app.js';
 import { getCurrentStory, getCurrentLeafId } from './story-writer.js';
+import { open as openLightbox } from './lightbox.js';
+import { open as openImageGrid } from './image-grid.js';
+import { open as openEntityDetail } from './entity-detail.js';
 
 let entityList = [];
 
 export function init() {
   document.getElementById('detect-entities-btn').addEventListener('click', handleDetect);
+  document.getElementById('add-entity-btn').addEventListener('click', toggleAddForm);
+  document.getElementById('add-entity-form').addEventListener('submit', handleAddEntity);
+  document.getElementById('add-entity-cancel').addEventListener('click', hideAddForm);
 
   // Refresh entities when a scene completes
   document.addEventListener('scene-complete', () => {
     const story = getCurrentStory();
     if (story) loadEntities(story.id);
   });
+
+  // Refresh when an entity is added from a warning button
+  document.addEventListener('entity-added', () => {
+    const story = getCurrentStory();
+    if (story) loadEntities(story.id);
+  });
 }
 
 export async function load(storyId) {
+  hideAddForm();
   await loadEntities(storyId);
 }
 
 export function clear() {
   entityList = [];
+  hideAddForm();
   render();
 }
 
@@ -34,6 +48,56 @@ async function loadEntities(storyId) {
     render();
   } catch (err) {
     showToast('Failed to load entities: ' + err.message, 'error');
+  }
+}
+
+function toggleAddForm() {
+  const form = document.getElementById('add-entity-form');
+  form.classList.toggle('hidden');
+  if (!form.classList.contains('hidden')) {
+    document.getElementById('entity-name-input').focus();
+  }
+}
+
+function hideAddForm() {
+  const form = document.getElementById('add-entity-form');
+  form.classList.add('hidden');
+  form.reset();
+}
+
+async function handleAddEntity(e) {
+  e.preventDefault();
+
+  const story = getCurrentStory();
+  if (!story) {
+    showToast('No active story', 'error');
+    return;
+  }
+
+  const name = document.getElementById('entity-name-input').value.trim();
+  const entityType = document.getElementById('entity-type-select').value;
+  const description = document.getElementById('entity-desc-input').value.trim();
+  const basePrompt = document.getElementById('entity-prompt-input').value.trim();
+
+  if (!name || !description || !basePrompt) {
+    showToast('All fields are required', 'error');
+    return;
+  }
+
+  const submitBtn = document.getElementById('add-entity-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Adding...';
+
+  try {
+    await api.createEntity(story.id, entityType, name, description, basePrompt);
+    showToast(`Added ${name}`, 'success');
+    hideAddForm();
+    await loadEntities(story.id);
+  } catch (err) {
+    showToast('Failed to add entity: ' + err.message, 'error');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Add';
   }
 }
 
@@ -65,6 +129,16 @@ function render() {
     for (const entity of entities) {
       const item = document.createElement('div');
       item.className = 'entity-item';
+      item.style.cursor = 'pointer';
+
+      // Clicking anywhere on the item opens the detail panel
+      item.addEventListener('click', () => {
+        openEntityDetail(entity, (updated) => {
+          const idx = entityList.findIndex(e => e.id === entity.id);
+          if (idx >= 0) entityList[idx] = updated;
+          render();
+        });
+      });
 
       // Thumbnail or placeholder
       if (entity.reference_image_path) {
@@ -72,16 +146,25 @@ function render() {
         img.className = 'entity-thumb';
         img.src = `/static/images/${entity.reference_image_path}`;
         img.alt = entity.name;
-        img.title = 'Click to regenerate image';
-        img.style.cursor = 'pointer';
-        img.addEventListener('click', () => generateImage(entity, img));
+        img.title = 'Click to view full image';
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openLightbox(`/static/images/${entity.reference_image_path}`, entity.name);
+        });
         item.appendChild(img);
       } else {
         const placeholder = document.createElement('div');
         placeholder.className = 'entity-thumb-placeholder';
         placeholder.textContent = typeIcons[type] || '?';
-        placeholder.title = 'Click to generate image';
-        placeholder.addEventListener('click', () => generateImage(entity, placeholder));
+        placeholder.title = 'Click to generate images';
+        placeholder.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openImageGrid(entity.id, entity.name, (updated) => {
+            const idx = entityList.findIndex(e => e.id === entity.id);
+            if (idx >= 0) entityList[idx] = updated;
+            render();
+          });
+        });
         item.appendChild(placeholder);
       }
 

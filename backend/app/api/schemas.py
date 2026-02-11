@@ -46,6 +46,13 @@ class NodeUpdate(BaseModel):
     content: str = Field(..., min_length=1)
 
 
+class UnknownCharacter(BaseModel):
+    name: str
+    entity_type: str = "character"
+    description: str = ""
+    base_prompt: str = ""
+
+
 class NodeResponse(BaseModel):
     id: uuid.UUID
     story_id: uuid.UUID
@@ -56,6 +63,7 @@ class NodeResponse(BaseModel):
     created_at: datetime
     beat: dict | None = None
     continuity_warnings: list[str] = []
+    unknown_characters: list[UnknownCharacter] = []
     illustration_path: str | None = None
 
     model_config = {"from_attributes": True}
@@ -88,6 +96,12 @@ class EntityResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ImageSelectRequest(BaseModel):
+    filename: str = Field(..., min_length=1)
+    seed: int
+    reject_filenames: list[str] = Field(default_factory=list)
 
 
 class DetectEntitiesRequest(BaseModel):

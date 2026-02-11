@@ -8,6 +8,9 @@ import * as storyList from './story-list.js';
 import * as storyWriter from './story-writer.js';
 import * as entityPanel from './entity-panel.js';
 import * as treeView from './tree-view.js';
+import * as lightbox from './lightbox.js';
+import * as imageGrid from './image-grid.js';
+import * as entityDetail from './entity-detail.js';
 import { exportMarkdownUrl } from './api.js';
 
 // ── State ────────────────────────────────────────────────────────────
@@ -55,6 +58,9 @@ function init() {
   storyWriter.init(socket);
   entityPanel.init();
   treeView.init();
+  lightbox.init();
+  imageGrid.init();
+  entityDetail.init();
 
   // Header buttons
   document.getElementById('back-btn').addEventListener('click', openLobby);
@@ -62,6 +68,15 @@ function init() {
     const story = storyWriter.getCurrentStory();
     if (!story) return;
     window.open(exportMarkdownUrl(story.id), '_blank');
+  });
+
+  // Global Escape key handler — closes topmost modal first
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    // Close in z-index order: lightbox (2000) > image-grid (2000) > entity-detail (1500)
+    if (lightbox.isOpen()) { lightbox.close(); return; }
+    if (imageGrid.isOpen()) { imageGrid.close(); return; }
+    if (entityDetail.isOpen()) { entityDetail.close(); return; }
   });
 
   // Start on lobby
