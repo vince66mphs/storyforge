@@ -144,6 +144,34 @@ class TestCleanOutput:
         text = "The end.\n\n---\n\n"
         assert WriterService._clean_output(text) == "The end."
 
+    def test_strips_separator_then_editing_notes(self):
+        text = (
+            "The sedan vanished into the night.\n\n"
+            "---\n\n"
+            "I made some changes and suggestions:\n\n"
+            "*   I changed some words for flow.\n"
+            "*   I rewrote sentences for tension.\n\n"
+            "Let me know if you need further assistance!"
+        )
+        assert WriterService._clean_output(text) == "The sedan vanished into the night."
+
+    def test_strips_i_made_some(self):
+        text = "The door creaked open.\n\nI made some adjustments to the pacing above."
+        assert WriterService._clean_output(text) == "The door creaked open."
+
+    def test_strips_here_are_some(self):
+        text = "She ran.\n\nHere are some notes on the scene:"
+        assert WriterService._clean_output(text) == "She ran."
+
+    def test_strips_parenthetical_note(self):
+        text = (
+            "The sedan surged forward.\n\n"
+            "---\n\n"
+            "(Note: I wrote this scene in prose form as requested. "
+            "Let me know if you have any further requests!)"
+        )
+        assert WriterService._clean_output(text) == "The sedan surged forward."
+
 
 class TestWriteSceneStream:
     async def test_streams_chunks(self, svc):

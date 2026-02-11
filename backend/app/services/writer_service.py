@@ -80,6 +80,11 @@ class WriterService:
         r"|If you would like"
         r"|Would you like"
         r"|Feel free to\b"
+        r"|I made some\b"
+        r"|Here are some\b"
+        r"|These are just\b"
+        r"|Note:|Notes:"
+        r"|\(Note:"
         r"|\[WORLD BIBLE\]"
         r"|Scene plan:"
         r"|---\s*$"
@@ -106,11 +111,15 @@ class WriterService:
                 continue
             if WriterService._CUTOFF_PATTERNS.match(stripped):
                 # A lone "---" inside prose is legitimate (section break)
-                # Only treat it as cutoff if it's followed by a meta-commentary line
+                # Only treat it as cutoff if ANY remaining line contains meta-commentary
                 if stripped.startswith("---"):
-                    # Look ahead for meta-commentary after this separator
-                    remaining = "\n".join(lines[i + 1:]).strip()
-                    if not remaining or WriterService._CUTOFF_PATTERNS.match(remaining.split("\n")[0].strip()):
+                    remaining_lines = [
+                        l.strip() for l in lines[i + 1:] if l.strip()
+                    ]
+                    if not remaining_lines or any(
+                        WriterService._CUTOFF_PATTERNS.match(l)
+                        for l in remaining_lines
+                    ):
                         cutoff_idx = i
                         break
                     # Legitimate horizontal rule inside prose — skip
