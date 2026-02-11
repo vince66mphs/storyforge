@@ -493,7 +493,16 @@ Addressed meta-commentary leaks, continuity errors, and missing output sanitizat
 **Planner continuity checks** (`planner_service.py`):
 - PLANNER_SYSTEM_PROMPT enhanced with physical continuity instructions: track driver/navigator roles, time-of-day progression, character positions, communication mode (texts vs speech vs phone), carry forward physical details
 
-**Tests:** 212 total (14 new `_clean_output` tests), all passing in ~3.5s
+**Tests:** 216 total (18 new `_clean_output` tests), all passing in ~3.5s
+
+**Live-tested:** Generated 4 scenes against dolphin-mistral; first 2 had artifacts (editing notes after `---`, parenthetical `(Note: ...)` blocks) caught by iterative pattern additions. Last 2 came back clean.
+
+**Known limitation:** `_clean_output()` uses line-start regex matching, which risks false positives if a character says "Let me know..." in dialogue. A future improvement would refactor to paragraph-level detection (artifacts always appear as standalone paragraphs after prose, never mid-paragraph).
+
+### Stale Unknown Character Warnings — FIXED
+- **Problem:** `unknown_characters` warnings baked into node metadata at generation time persisted after the entity was added to the World Bible, reappearing on page reload
+- **Fix:** Read-time filtering in `nodes.py` — `get_node()` and `get_node_path()` fetch current world bible entity names and filter `unknown_characters` and `continuity_warnings` from the response before serving
+- **Design choice:** Filtering at read time preserves the historical metadata (audit trail of what the planner actually produced) and works regardless of how entities are added
 
 ### Pending Manual Testing
 - [ ] 4-image generation grid (click "Generate Image" in entity detail → 2x2 grid fills progressively)
