@@ -1,0 +1,45 @@
+.node {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 140px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.node:hover {
+  border-color: var(--accent);
+}
+
+.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.handle {
+  width: 6px;
+  height: 6px;
+  background: var(--text-dim);
+  border: none;
+}

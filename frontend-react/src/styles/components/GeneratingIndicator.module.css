@@ -1,0 +1,40 @@
+.indicator {
+  padding: 8px 32px;
+  color: var(--accent);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-dim);
+}
+
+.done {
+  color: var(--success);
+}
+
+.pending {
+  color: var(--text-dim);
+}
+
+.arrow {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: 0 2px;
+}

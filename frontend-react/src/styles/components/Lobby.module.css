@@ -1,0 +1,41 @@
+.lobby {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.header {
+  text-align: center;
+  padding: 60px 20px 40px;
+}
+
+.header h1 {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.version {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.subtitle {
+  color: var(--text-dim);
+  margin-top: 8px;
+  font-size: 16px;
+}
+
+.content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 768px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}

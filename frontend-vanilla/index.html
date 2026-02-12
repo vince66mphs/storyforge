@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryForge 2.0</title>
+  <link rel="stylesheet" href="/app/css/style.css">
+</head>
+<body>
+  <!-- Toast container for notifications -->
+  <div id="toast-container"></div>
+
+  <!-- Lobby View -->
+  <div id="lobby-view" class="view">
+    <header class="lobby-header">
+      <h1>StoryForge <span class="version">2.0</span></h1>
+      <p class="subtitle">AI-powered interactive storytelling</p>
+    </header>
+
+    <section class="lobby-content">
+      <div class="create-form">
+        <h2>New Story</h2>
+        <form id="create-story-form">
+          <div class="form-group">
+            <label for="story-title">Title</label>
+            <input type="text" id="story-title" placeholder="Enter story title..." required>
+          </div>
+          <div class="form-group">
+            <label for="story-genre">Genre <span class="optional">(optional)</span></label>
+            <input type="text" id="story-genre" placeholder="Fantasy, Sci-Fi, Mystery...">
+          </div>
+          <div class="form-group">
+            <label for="story-content-mode">Content Mode</label>
+            <div class="toggle-group">
+              <button type="button" class="toggle-btn active" data-mode="unrestricted" id="mode-unrestricted">Unrestricted</button>
+              <button type="button" class="toggle-btn" data-mode="safe" id="mode-safe">Safe</button>
+            </div>
+            <input type="hidden" id="story-content-mode" value="unrestricted">
+          </div>
+          <div class="form-group">
+            <label for="story-opening">Opening direction</label>
+            <textarea id="story-opening" placeholder="Describe how the story should begin..." rows="3" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Story</button>
+        </form>
+      </div>
+
+      <div class="story-list-section">
+        <h2>Your Stories</h2>
+        <div id="story-list" class="story-list">
+          <p class="empty-state">Loading stories...</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Writing View -->
+  <div id="writing-view" class="view hidden">
+    <header class="writing-header">
+      <button id="back-btn" class="btn btn-ghost" title="Back to lobby">&larr; Stories</button>
+      <h1 id="story-title-display"></h1>
+      <div class="header-actions">
+        <button id="settings-btn" class="btn btn-ghost btn-small" title="Story settings">Settings</button>
+        <div class="export-wrapper">
+          <button id="export-btn" class="btn btn-ghost" title="Export story">Export</button>
+          <div id="export-dropdown" class="export-dropdown hidden">
+            <button id="export-md" class="export-option">Markdown</button>
+            <button id="export-epub" class="export-option">EPUB</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div id="settings-panel" class="settings-panel hidden">
+      <h4>Story Settings</h4>
+      <div class="settings-group">
+        <label>Content Mode</label>
+        <div class="toggle-group">
+          <button type="button" class="toggle-btn" data-mode="unrestricted" id="settings-mode-unrestricted">Unrestricted</button>
+          <button type="button" class="toggle-btn" data-mode="safe" id="settings-mode-safe">Safe</button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <label class="settings-checkbox-label">
+          <input type="checkbox" id="settings-auto-illustrate">
+          Auto-illustrate new scenes
+        </label>
+      </div>
+      <div class="settings-group">
+        <label for="settings-context-depth">Context Depth</label>
+        <div class="context-depth-slider">
+          <input type="range" id="settings-context-depth" min="1" max="20" value="3">
+          <span id="settings-context-depth-value">3</span>
+        </div>
+      </div>
+      <div class="settings-group settings-divider">
+        <button id="settings-check-continuity" class="btn btn-secondary btn-small" style="width:100%">Check Continuity</button>
+      </div>
+    </div>
+
+    <div class="writing-layout">
+      <!-- Left Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-section" id="entity-panel">
+          <h3>World Bible</h3>
+          <div class="entity-actions">
+            <button id="detect-entities-btn" class="btn btn-small">Detect Entities</button>
+            <button id="add-entity-btn" class="btn btn-small btn-secondary">+ Add</button>
+          </div>
+          <form id="add-entity-form" class="add-entity-form hidden">
+            <div class="form-group">
+              <label for="entity-name-input">Name</label>
+              <input type="text" id="entity-name-input" placeholder="e.g. Elara" required>
+            </div>
+            <div class="form-group">
+              <label for="entity-type-select">Type</label>
+              <select id="entity-type-select">
+                <option value="character">Character</option>
+                <option value="location">Location</option>
+                <option value="prop">Prop</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="entity-desc-input">Description</label>
+              <textarea id="entity-desc-input" placeholder="Who/what is this?" rows="2" required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="entity-prompt-input">Image Prompt</label>
+              <textarea id="entity-prompt-input" placeholder="Visual description for image generation" rows="2" required></textarea>
+            </div>
+            <div class="add-entity-actions">
+              <button type="submit" id="add-entity-submit" class="btn btn-primary btn-small">Add</button>
+              <button type="button" id="add-entity-cancel" class="btn btn-ghost btn-small">Cancel</button>
+            </div>
+          </form>
+          <div id="entity-list" class="entity-list">
+            <p class="empty-state">No entities yet</p>
+          </div>
+        </div>
+
+        <div class="sidebar-section" id="tree-panel">
+          <h3>Narrative Tree</h3>
+          <div id="tree-view" class="tree-view">
+            <p class="empty-state">No nodes yet</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="story-main">
+        <div id="scenes-container" class="scenes-container"></div>
+
+        <div id="generating-indicator" class="generating-indicator hidden">
+          <span class="spinner"></span> <span class="generating-label">Generating...</span>
+        </div>
+
+        <div class="prompt-area">
+          <textarea id="prompt-input" placeholder="What happens next? Describe the direction for the next scene..." rows="3"></textarea>
+          <div class="prompt-actions">
+            <button id="continue-btn" class="btn btn-primary">Continue</button>
+            <button id="branch-btn" class="btn btn-secondary" title="Create alternative branch from current scene">Branch</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Entity Detail Panel -->
+  <div id="entity-detail-overlay" class="entity-detail-overlay hidden">
+    <div id="entity-detail-panel" class="entity-detail-panel"></div>
+  </div>
+
+  <!-- Image Grid Modal (4-image selection) -->
+  <div id="image-grid-overlay" class="image-grid-overlay hidden">
+    <div class="image-grid-modal">
+      <div class="image-grid-header">
+        <h3 id="image-grid-title">Select Image</h3>
+        <button id="image-grid-close" class="lightbox-close">&times;</button>
+      </div>
+      <div id="image-grid" class="image-grid"></div>
+      <div class="image-grid-footer">
+        <button id="image-grid-regen" class="btn btn-secondary btn-small">Regenerate All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Continuity Check Modal -->
+  <div id="continuity-overlay" class="continuity-overlay hidden">
+    <div class="continuity-modal">
+      <div class="continuity-header">
+        <h3>Continuity Check</h3>
+        <button id="continuity-close" class="lightbox-close">&times;</button>
+      </div>
+      <div id="continuity-body" class="continuity-body">
+        <p class="empty-state">Running analysis...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox-overlay" class="lightbox-overlay hidden">
+    <button id="lightbox-close" class="lightbox-close">&times;</button>
+    <img id="lightbox-img" class="lightbox-img" alt="">
+    <div id="lightbox-caption" class="lightbox-caption"></div>
+  </div>
+
+  <script type="module" src="/app/js/app.js"></script>
+</body>
+</html>

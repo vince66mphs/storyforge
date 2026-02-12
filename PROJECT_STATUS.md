@@ -455,9 +455,32 @@ The entity panel has been upgraded from minimal (auto-detect, tiny thumbnails, c
   - Unit: basic output, valid ZIP, file structure, entities, missing images, embedded images, no genre, HTML escaping
   - Integration: EPUB endpoint 200 + content-type, 404 for nonexistent story
 
+### React + TypeScript Frontend Rewrite — COMPLETE
+- [x] Backed up vanilla frontend to `frontend-vanilla/`
+- [x] Created `frontend-react/` Vite + React 18 + TypeScript project
+- [x] **Stack:** Vite 6, React 18, TypeScript 5.7, Zustand 5, @xyflow/react 12
+- [x] **Build integration:** Dev server at :5173 proxies `/api`, `/ws`, `/static` to FastAPI :8000; production builds to `frontend/` (same mount point, no backend changes)
+- [x] **TypeScript types** (`src/types/api.ts`, `websocket.ts`) — full interfaces matching all Pydantic schemas
+- [x] **API client** (`src/api/client.ts`, `stories.ts`, `nodes.ts`, `entities.ts`) — typed fetch wrapper with ApiError class, all 24 REST endpoints + SSE + file upload
+- [x] **Zustand stores** (`storyStore.ts`, `uiStore.ts`) — story/node/entity state, generation/modal/toast UI state
+- [x] **Custom hooks:**
+  - `useStorySocket` — WebSocket lifecycle with reconnect, dispatches tokens/phases/completion/illustrations/errors
+  - `useSSE` — POST+ReadableStream for 4-image entity generation
+- [x] **Lobby view:** LobbyView, CreateStoryForm (title/genre/content mode/opening prompt), StoryList, StoryCard (click-to-open, delete with confirm)
+- [x] **Writing view:** WritingView (orchestrator), ScenesContainer, Scene (illustration/content/actions/beat/warnings), SceneBeat (expandable details), SceneWarnings (with "Add to World Bible" buttons), StreamingScene (blinking cursor), GeneratingIndicator (step progress), PromptArea (Continue/Branch/Ctrl+Enter)
+- [x] **Sidebar:** EntityPanel (detect/add/list grouped by type), EntityItem (thumbnail/placeholder/name/type), AddEntityForm (inline creation), NarrativeDAG (React Flow interactive graph), StoryNode (custom node with preview/active highlight/illustration badge)
+- [x] **Modals:** EntityDetailModal (edit fields, generate/upload/describe image), ImageGridModal (4-image SSE grid with click-to-select), LightboxModal (full-size image viewer), ContinuityCheckModal (issue list with severity badges)
+- [x] **Layout:** Header (back/title/export dropdown/settings), WritingLayout (CSS Grid sidebar+main), Sidebar, SettingsPanel (content mode/auto-illustrate/context depth/continuity check)
+- [x] **Shared:** ToastContainer, Spinner, ContentModeToggle
+- [x] **Styling:** CSS Modules for all components, global CSS variables preserved from vanilla frontend, dark theme, responsive breakpoint (sidebar hidden on mobile)
+- [x] **React Flow DAG:** Interactive graph with BFS layout, custom StoryNode, click-to-navigate, Controls+MiniMap with dark theme
+- [x] **Keyboard shortcuts:** Ctrl+Enter to continue, Escape to close modals (z-index order)
+- [x] **Production build verified:** `npm run build` outputs to `frontend/`, FastAPI serves correctly at `/`
+- [x] **Backend tests:** 242 tests still passing
+- [x] **~50 new files** in `frontend-react/`, 1 backend file edited (.gitignore)
+
 ### Future Phase 3 Work (Not Yet Started)
 - Pull new writer models (Dark Champion, Gemma 3 27B QAT, Hermes 3 8B)
-- React/TypeScript frontend rewrite with React Flow DAG editor
 - Audio narration / TTS
 - PuLID advanced face consistency
 - LoRA training pipeline

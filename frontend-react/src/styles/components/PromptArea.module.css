@@ -1,0 +1,16 @@
+.area {
+  padding: 16px 32px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.area textarea {
+  margin-bottom: 10px;
+  background: var(--bg-tertiary);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
