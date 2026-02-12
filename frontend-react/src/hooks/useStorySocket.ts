@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import type { NodeResponse } from '../types/api'
-import type { ServerMessage, ClientMessage } from '../types/websocket'
+import type { ServerMessage, GenerateMessage, BranchMessage } from '../types/websocket'
 
 interface Options {
   onToken: (text: string) => void
@@ -93,7 +93,7 @@ export default function useStorySocket(opts: Options): SocketHandle {
     }
   }, [connect])
 
-  const send = useCallback((msg: ClientMessage) => {
+  const send = useCallback((msg: GenerateMessage | BranchMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg))
       return true
@@ -104,15 +104,20 @@ export default function useStorySocket(opts: Options): SocketHandle {
   const generate = useCallback((storyId: string, prompt: string, parentNodeId?: string) => {
     optsRef.current.onGenerating(true)
     optsRef.current.onPhase('planning')
-    const msg: ClientMessage = { action: 'generate', story_id: storyId, prompt }
-    if (parentNodeId) (msg as { parent_node_id?: string }).parent_node_id = parentNodeId
+    const msg: GenerateMessage = {
+      action: 'generate',
+      story_id: storyId,
+      prompt,
+      ...(parentNodeId ? { parent_node_id: parentNodeId } : {}),
+    }
     send(msg)
   }, [send])
 
   const branch = useCallback((storyId: string, nodeId: string, prompt: string) => {
     optsRef.current.onGenerating(true)
     optsRef.current.onPhase('planning')
-    send({ action: 'branch', story_id: storyId, node_id: nodeId, prompt })
+    const msg: BranchMessage = { action: 'branch', story_id: storyId, node_id: nodeId, prompt }
+    send(msg)
   }, [send])
 
   return {

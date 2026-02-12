@@ -2,7 +2,6 @@ import { useMemo, useCallback } from 'react'
 import {
   ReactFlow,
   Controls,
-  MiniMap,
   type Node,
   type Edge,
   type NodeMouseHandler,
@@ -109,16 +108,12 @@ export default function NarrativeDAG() {
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         fitView
+        fitViewOptions={{ padding: 0.3 }}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
-        <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(node) => node.data?.isActive ? 'var(--accent)' : 'var(--bg-hover)'}
-          maskColor="rgba(0, 0, 0, 0.5)"
-          style={{ background: 'var(--bg-primary)' }}
-        />
+        <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
     </div>
   )

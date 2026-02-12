@@ -11,6 +11,16 @@
   border-bottom: 1px solid var(--border);
 }
 
+.treeSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.treeSection > div {
+  flex: 1;
+}
+
 .section h3 {
   font-size: 12px;
   text-transform: uppercase;

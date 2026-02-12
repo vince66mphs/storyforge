@@ -6,7 +6,7 @@ export default function Sidebar() {
   return (
     <aside className={styles.sidebar}>
       <EntityPanel />
-      <div className={styles.section}>
+      <div className={`${styles.section} ${styles.treeSection}`}>
         <h3>Story Tree</h3>
         <NarrativeDAG />
       </div>

@@ -22,11 +22,13 @@ export default function WritingView() {
   const handleComplete = useCallback((node: Parameters<typeof appendNode>[0]) => {
     appendNode(node)
     resetStream()
-    if (currentStory) {
-      loadTree(currentStory.id)
-      fetchEntities(currentStory.id)
+    // Read currentStory from store at call time to avoid stale closure
+    const story = useStoryStore.getState().currentStory
+    if (story) {
+      loadTree(story.id)
+      fetchEntities(story.id)
     }
-  }, [appendNode, resetStream, currentStory, loadTree, fetchEntities])
+  }, [appendNode, resetStream, loadTree, fetchEntities])
 
   const handleIllustration = useCallback((nodeId: string, path: string) => {
     updateNodeIllustration(nodeId, path)
